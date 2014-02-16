@@ -1,0 +1,72 @@
+Remote panel for monitored systems or devices
+
+The monitored by UniSCADA sites are mostly maintained using web browser. However, it is also possible to have a remote panel for the monitored system on you smartphone. 
+This is possible using a special address, where html5 pages aligning to your mobile device screen and orientation are served. Just as with 
+Nagios-based user interface, there are central servers in the middle arranging the data flow between the maintained site and your 
+mobile device. No direct connection between your device and the system is possible to ensure security and effectiveness of the remote access. 
+
+The panel design depends on system and is normally custom-made, except for the general channel data monitor that is usable for 
+every system using controllers from Droid4Control.
+
+Let's take a look on the pump station remote panel. On the screen the water level in the well is visualized, together with the threshold values for pump start and stop.
+Other important sensor signals are visible too, like pump states (on or off), failures and pump supply current (when running). Battery voltage, door and hatch 
+position and flooding sensor signals are visible too. 
+
+The remote panel has an indicator, which blinks every time some new data has arrived from the site controller via the
+server to the mobile device. only after that the full screen of the mobile device will be updated, 
+to minimize the traffic volume for the mobile device.  
+
+
+--
+et kuidas siis. nagioses ikoon (voi spetsaadress, m.itvilla.com vms), mis viitab receiver.itvilla.com? koos viitega antakse kaasa 
+autoriseering??
+receiver teeb cgi paringu nagiose serverisse ja saab tagasi lubatud hostide loetelu html kujul. sellest nopitakse valja aliased ja tehakse list, 
+mis serveeritakse html5 veebilehena. hea oleks kaasa anda ka piirkonna tunnus. kui ei saa, siis sortida aliase alusel.
+
+kasutaja teeb oma moblal objekti valiku ja saab jargmise veebilehe, mis hakkab perioodiliselt cgi paringuid saatma receiver serverile, mis vastab 
+json infoga muutujate kohta. muutujate hulgas on viimase info timestamp, mille muutudes vilgatab "update" tuluke veebilehel. nii
+saab olla kindel, et yhendus alates kontrollerist labi serveri kuni mobiilse seadmeni toimib. 
+
+kuid selle asemel, et kohe koik muutujad mobiilse seadme brauserisse sisse tommata, tuleks koigepealt kontrollida varskeima saabunud 
+info timestampi ja alles siis, kui see on suurem, kui mobiilseadme brauserile teadaolev väärtus, tuleks sisse tõmmata pikem json info 
+kõikide muutujatega.  selline veebileht peaks kehva leviga (mis mobiilse seadmega on tavaline) paremini töötama.
+
+kui kasutaja tahab parajasti jalgitava kontrolleri asemele teist objekti valida, laheb ta tagasi objektide loetelusse 
+(kuidas vältida selle (vahel pikavõitu) nimekirja mõttetut uuestilaadimist?) ja valib uue pidevalt jalgitava objekti. 
+
+barionet-kontrolleri puhul ei tasu vist html failide sarnasust/ kokkusobivust kontrolleris ja serveris taga ajada, voib jaada io_muutujad.html 
+kasutusele kontrolleris. kuid androidi puhul võiks ka lokaalne html liideste serveerimine toimida tapselt samamoodi nii kontrolleris kui serveris. 
+tegelikult voib aga ka barixis cgi vastuseid teha nii nagu vaja, ehk kolida ka barionet yle cgi kasutamisele.
+
+kui seadme-systeemi mobiilse juhtpaneeli jalgimise kaigus tekib soov seadistust muuta, voiks muutmiseks lubatud visualiseeringutel 
+klikkimine avada kasvatamise-kahandamise akna. pika numbri sisestamine on vast mottetu, pealegi saab nii ehk muutmise ulatusele ka 
+piire ette seada. sellised yhe parameetri muutused mõjutavad kogu teenuse infot, millesse see parameeter on kaasatud. 
+
+barioneti puhul voib piirduda uiappsetup1.html etteandmisega, mis peaks olema html5 kujule kohandatud. salvestamisel laheks muutujad 
+otse kontrolleri flashi nagu seni. android puhul peab asi olema aga jallegi yhtemoodi nii kontrolleris kui serveris, ainult serveri ip aadress 
+on teine (korfd on server android-kontroller ise ja kord receiver.itvilla.com. lähtudes sql põhisest teenuste seadistustest
+(kus iga teenus võib haarata mitme io kanali infot ja lisaks ka maaratlemata registreid sisaldavate sql kirjetena defineeritud
+ pysivaid vaartusi), võiks iga teenuse anda yhe pakitud ja base64 kodeeringusse muundatud muutujaga. sellised muutujaid peaks olema voimalik ka 
+ kontrolleri ja serveri vahel synkroniseerida, see vabastaks vajadusest sql faile vahetada.
+ 
+ gzip pakkimine ja base64 kodeerimine on voimalik serveris, kuid vist mitte brauseris. tegelikult oleneb vist mobiilse seadme op systeemist, 
+ android ja linux ja ilmselt ka ios peaks voimaldama gzip ja base64 kasutamist... mis ei voimalda, see seade lihtsalt ei kolba!
+ 
+ teenustepohine konfimisevoimalus peaks olema kattesaadav ka objekti jaoks defineeritud teenuste loetelust, vastava sql paringuga.
+nullist alates veebis konfi ei looda, sql peab enne olemas olema, veebis saab vaid juba olemasolevaid vaartusi muuta. seega ei saa 
+pariselt lahti sql failide haldamisest, kuid see ei pea olema loppkasutajale kattesaadav. 
+
+sql paringu alusel loodud seadistuslehel (alati yhe teenuse kohta) on voimalik muuta sisendinfo registrit, piire jt olekut määravaid 
+tingimusi ning anda ette abijooni. muutujate arvu või järjestust multivalue teenuses ei saa sellest liidesest muuta, nagu ei saa
+sealt muuta ka teenusekoodi (selle voib loppkasutaja eest isegi varjata, kuid vahel on hea teada).
+
+2616507894  
+
+
+
+
+ 
+ 
+ 
+ 
+ 

@@ -1,0 +1,338 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="refresh" content="60"; URL="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu">
+<base href="https://kehra.itvilla.com/" />
+<title>Service details multiple hosts -&gt; SideOlemasolu</title>
+<link rel="stylesheet" type="text/css" href="/pnp4nagios/media/css/common.css" />
+<link rel="stylesheet" type="text/css" href="/pnp4nagios/media/css/imgareaselect-default.css" />
+<link rel="stylesheet" type="text/css" href="/pnp4nagios/media/css/ui-smoothness/jquery-ui.css" />
+<link rel="icon" type="image/ico" href="/pnp4nagios/media/images/favicon.ico" />
+<script type="text/javascript" src="/pnp4nagios/media/js/jquery-min.js"></script>
+<script type="text/javascript" src="/pnp4nagios/media/js/jquery.imgareaselect.min.js"></script>
+<script type="text/javascript" src="/pnp4nagios/media/js/jquery-ui.min.js"></script>
+<script type="text/javascript" src="/pnp4nagios/media/js/jquery-ui-timepicker-addon.js"></script>
+<script type="text/javascript">
+jQuery.noConflict();
+jQuery(window).load(
+    function() {
+
+    jQuery('div.graph').each(function(){
+	var img_width = jQuery(this).next('img').width();
+	var rrd_width = parseInt(jQuery(this).css('width'));
+	var left = img_width - rrd_width - 30;
+	jQuery(this).css('left', left);
+	jQuery(this).css('cursor', 'e-resize');
+	jQuery(this).attr('title', 'Click to zoom in');
+    });
+
+    jQuery('img.goto').css('visibility', 'visible');
+    jQuery('div.graph').imgAreaSelect({ handles: false, autoHide: true,
+        fadeSpeed: 500, onSelectEnd: redirect, minHeight: '100' });
+
+    function redirect(img, selection) {
+    	if (!selection.width || !selection.height)
+        	return;
+
+	var graph_width = parseInt(jQuery(img).css('width'));
+	var link   = jQuery(img).attr('id');
+	var ostart = Math.abs(jQuery(img).attr('start'));
+	var oend   = Math.abs(jQuery(img).attr('end'));
+	var delta  = (oend - ostart);
+	if( delta < 600 )
+	    delta = 600;
+	var sec_per_px = parseInt( delta / graph_width);
+	var start = ostart + Math.ceil( selection.x1 * sec_per_px );  
+	var end   = ostart + ( selection.x2 * sec_per_px );  
+        window.location = link + '&start=' + start + '&end=' + end ; 
+
+    }
+
+});
+jQuery(document).ready(function(){
+    var path = "/pnp4nagios//";
+    jQuery("img").fadeIn(1500);
+    jQuery("#basket_action_add a").live("click", function(){
+        var item = (this.id)
+        jQuery.ajax({
+            type: "POST",
+            url: path + "ajax/basket/add",
+            data: { item: item },
+            success: function(msg){
+                jQuery("#basket_items").html(msg);
+                window.location.reload() 
+            }
+        });
+    });
+    jQuery("#basket-clear").live("click", function(){
+        jQuery.ajax({
+            type: "POST",
+            url: path + "ajax/basket/clear",
+            success: function(msg){
+                window.location.reload() 
+            }
+        });
+    });
+    jQuery("#basket-show").live("click", function(){
+                window.location.href = path + 'page/basket' 
+    });
+    jQuery(".basket_action_remove a").live("click", function(){
+        var item = (this.id)
+        jQuery.ajax({
+            type: "POST",
+            url: path + "ajax/basket/remove/",
+            data: { item: item },
+            success: function(msg){
+                jQuery("#basket_items").html(msg);
+                window.location.reload() 
+            }
+        });
+    });
+    jQuery("#basket_items" ).sortable({
+        update: function(event, ui) {
+	    var items = jQuery(this).sortable('toArray').toString();
+            jQuery.ajax({
+                type: "POST",
+                url: path + "ajax/basket/sort",
+                data: { items: items },
+                success: function(msg){
+                    window.location.reload() 
+                }
+            });
+        }
+    });
+    jQuery("#basket_items" ).disableSelection();
+    jQuery("#remove_timerange_session").click(function(){
+        jQuery.ajax({
+            type: "GET",
+            url: path + "ajax/remove/timerange",
+            success: function(){
+                location.reload();
+            }
+        });
+    });
+
+
+});
+
+function Gzoom (url) {
+GzoomWindow = window.open(url, "PNP4Nagios", "width=640,height=330,location=no,status=no,resizable=yes,scrollbars=yes");
+GzoomWindow.focus();
+}
+</script>
+</head>
+<body>
+<div class="pagebody">
+    <table class="body"><tr valign="top"><td colspan="2">
+	<!-- Header Template -->
+<div class="p4 ui-widget-header ui-corner-all">
+Service details multiple hosts -> SideOlemasolu</div>
+	</td></tr>
+	<tr valign="top"><td>
+    <div class="left ui-widget-content ui-corner-all">
+
+	<!-- Graph Content Start-->
+    <script type="text/javascript">
+jQuery(function() {
+    jQuery("#button").click(function() {
+        jQuery("#toggle-timerange").toggle("blind",500); 
+        return false;
+    });
+	jQuery("#dpstart").datetimepicker({ showOn: 'button', buttonImage: '/pnp4nagios/media/images/view-calendar.png', buttonImageOnly: true, constrainInput: false });
+	jQuery("#dpend").datetimepicker({ showOn: 'button', buttonImage: '/pnp4nagios/media/images/view-calendar.png', buttonImageOnly: true, constrainInput: false });
+});
+</script>
+
+<div id="toggle-timerange" class="ui-widget" style="Display: none;">
+    <div class="p4 ui-widget-header ui-corner-top">Select a custom time range</div>
+    <div class="p4 ui-widget-content ui-corner-bottom">
+	<form method="GET" action="/pnp4nagios/graph">
+        <fieldset>
+            <legend>Select a custom time range</legend>
+			<input type="hidden" name="host" value="00204ACA817F">
+<input type="hidden" name="srv" value="SideOlemasolu">
+            <label for=start">Start: </label><input id="dpstart" type="text" size="18" maxlength="40" name="start" value="">
+			<label for=end">End: </label><input id="dpend" type="text" size="18" maxlength="40" name="end" value="">
+			<input type="submit" id="submit" class="ui-button ui-state-default ui-corner-all" value="Submit"></input>
+			<input type="button" id="remove_timerange_session" class="ui-button ui-state-default ui-corner-all" value="Clear"></input>
+        </fieldset>
+    </form><p>
+    </div>
+</div>
+
+<div class="ui-widget" style="min-width:585px">
+
+<strong>Host: </strong>00204ADEAD1B <strong>Service: </strong>SideOlemasolu<p>
+<strong>One Year</strong> 24.08.12 10:16 - 08.09.13 10:16
+<div class="ui-widget-header ui-corner-top"><table border=0 width=100%><tr>
+<td width=100% align=left>Datasource: Sideolukord</td>
+<td align=right><a href="/cgi-bin/nagios3/summary.cgi?report=1&displaytype=1&timeperiod=custom&smon=08&sday=24&syear=2012&shour=10&smin=16&ssec=04&emon=09&eday=08&eyear=2013&ehour=10&emin=16&esec=04&hostgroup=all&servicegroup=all&host=00204ACA817F&alerttypes=3&statetypes=3&hoststates=7&servicestates=120&limit=999" title="Most recent alerts for this time range"><img src="/pnp4nagios/media/images/notify.gif"></a>
+</td>
+<td align=right><a href="/cgi-bin/nagios3/avail.cgi?show_log_entries=&host=00204ADEAD1B&service=SideOlemasolu&timeperiod=custom&smon=08&sday=24&syear=2012&shour=10&smin=16&ssec=04&emon=09&eday=08&eyear=2013&ehour=10&emin=16&esec=04&rpttimeperiod=&assumeinitialstates=yes&assumestateretention=yes&assumestatesduringnotrunning=yes&includesoftstates=yes&initialassumedservicestate=6&backtrack=4" title="Nagios availability report for this time range"><img src="/pnp4nagios/media/images/trends.gif" ></a>
+</td>
+<td align=right><span id="basket_action_add"><a title="Add this item to my basket" id="00204ADEAD1B::SideOlemasolu::0"><img width=16px height=16px src="/pnp4nagios/media/images/add.png"></a></span>
+</td>
+<td align=right><a href="javascript:Gzoom('/pnp4nagios/zoom?host=00204ADEAD1B&srv=SideOlemasolu&view=4&source=0&end=1378624564&start=1345792564&graph_width=500&graph_height=100');" title="Zoom into the Graph"><img src="/pnp4nagios/media/images/zoom.png"></a>
+</td>
+</tr></table>
+</div>
+<div class="p4 gh ui-widget-content ui-corner-bottom">
+<div style="position:relative;">
+<a href="/pnp4nagios/graph?host=00204ADEAD1B&srv=SideOlemasolu" title="Host: 00204ADEAD1B Service: SideOlemasolu Datasource: Sideolukord ">
+<div start=1345792564 end=1378624564 style="width:500px; height:100px; position:absolute; top:33px" class="graph" id="?host=00204ADEAD1B&srv=SideOlemasolu" ></div><img class="graph" src="/pnp4nagios/image?host=00204ACA817F&srv=SideOlemasolu&view=4&source=0&start=1345792564&end=1378624564"></a>
+</div>
+</div><p>
+
+<strong>Host: </strong>00204ACA817F <strong>Service: </strong>SideOlemasolu<p>
+<strong>One Year</strong> 24.08.12 10:16 - 08.09.13 10:16
+<div class="ui-widget-header ui-corner-top"><table border=0 width=100%><tr>
+<td width=100% align=left>Datasource: Sideolukord</td>
+<td align=right><a href="/cgi-bin/nagios3/summary.cgi?report=1&displaytype=1&timeperiod=custom&smon=08&sday=24&syear=2012&shour=10&smin=16&ssec=04&emon=09&eday=08&eyear=2013&ehour=10&emin=16&esec=04&hostgroup=all&servicegroup=all&host=00204ACA817F&alerttypes=3&statetypes=3&hoststates=7&servicestates=120&limit=999" title="Most recent alerts for this time range"><img src="/pnp4nagios/media/images/notify.gif"></a>
+</td>
+<td align=right><a href="/cgi-bin/nagios3/avail.cgi?show_log_entries=&host=00204ACA817F&service=SideOlemasolu&timeperiod=custom&smon=08&sday=24&syear=2012&shour=10&smin=16&ssec=04&emon=09&eday=08&eyear=2013&ehour=10&emin=16&esec=04&rpttimeperiod=&assumeinitialstates=yes&assumestateretention=yes&assumestatesduringnotrunning=yes&includesoftstates=yes&initialassumedservicestate=6&backtrack=4" title="Nagios availability report for this time range"><img src="/pnp4nagios/media/images/trends.gif" ></a>
+</td>
+<td align=right><span id="basket_action_add"><a title="Add this item to my basket" id="00204ACA817F::SideOlemasolu::0"><img width=16px height=16px src="/pnp4nagios/media/images/add.png"></a></span>
+</td>
+<td align=right><a href="javascript:Gzoom('/pnp4nagios/zoom?host=00204ACA817F&srv=SideOlemasolu&view=4&source=0&end=1378624564&start=1345792564&graph_width=500&graph_height=100');" title="Zoom into the Graph"><img src="/pnp4nagios/media/images/zoom.png"></a>
+</td>
+</tr></table>
+</div>
+<div class="p4 gh ui-widget-content ui-corner-bottom">
+<div style="position:relative;">
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu" title="Host: 00204ACA817F Service: SideOlemasolu Datasource: Sideolukord ">
+<div start=1345792564 end=1378624564 style="width:500px; height:100px; position:absolute; top:33px" class="graph" id="?host=00204ACA817F&srv=SideOlemasolu" ></div><img class="graph" src="/pnp4nagios/image?host=00204ACA817F&srv=SideOlemasolu&view=4&source=0&start=1345792564&end=1378624564"></a>
+</div>
+</div><p>
+
+</div>
+<!-- Graph Content End-->
+    </div>
+    </td><td>
+
+	<div class="right ui-widget-content ui-corner-all">
+	
+	<!-- Icon Box Start -->
+<div class="ui-widget">
+<div class="p2 ui-widget-header ui-corner-top">
+Actions</div>
+<div class="p4 ui-widget-content ui-corner-bottom" >
+<a title="Define a custom time range" href="#" id="button"><img class="icon" src="/pnp4nagios/media/images/calendar.png"></a><a title="View PDF" href="/pnp4nagios/pdf?host=00204ACA817F&srv=SideOlemasolu&start=&end="><img class="icon" src="/pnp4nagios/media/images/pdf.png"></a>
+<a title="View XML" href="/pnp4nagios/xml?host=00204ACA817F&srv=SideOlemasolu"><img class="icon" src="/pnp4nagios/media/images/xml.png"></a>
+<a title="View internal statistics" href="/pnp4nagios/graph?host=.pnp-internal&srv=runtime"><img class="icon" src="/pnp4nagios/media/images/stats.png"></a>
+<a title="View Documentation" href="/pnp4nagios/docs"><img class="icon" src="/pnp4nagios/media/images/docs.png"></a>
+</div>
+</div><p>
+<!-- Icon Box End -->
+
+	<div class="ui-widget">
+<div class="p2 ui-widget-header ui-corner-top">
+My basket</div>
+<div class="p4 ui-widget-content ui-corner-bottom">
+<div id="basket_items">
+<li class="ui-state-default basket_action_remove" id="00204ADEA9C2::SideOlemasolu::0"><a title="Remove 00204ADEA9C2::SideOlemasolu::0"id="00204ADEA9C2::SideOlemasolu::0"><img width=12px height=12px src="/pnp4nagios/media/images/remove.png"></a>00204ADEA9C2::SideOlemaso...</li>
+<li class="ui-state-default basket_action_remove" id="00204ADEA9CE::SideOlemasolu::0"><a title="Remove 00204ADEA9CE::SideOlemasolu::0"id="00204ADEA9CE::SideOlemasolu::0"><img width=12px height=12px src="/pnp4nagios/media/images/remove.png"></a>00204ADEA9CE::SideOlemaso...</li>
+<li class="ui-state-default basket_action_remove" id="00204ACA817F::SideOlemasolu::0"><a title="Remove 00204ACA817F::SideOlemasolu::0"id="00204ACA817F::SideOlemasolu::0"><img width=12px height=12px src="/pnp4nagios/media/images/remove.png"></a>00204ACA817F::SideOlemaso...</li>
+<div align="center" class="p2">
+<button id="basket-show">Show basket</button>
+<button id="basket-clear">Clear basket</button>
+</div>
+</div>
+</div>
+</div><br>
+<div id="basket_box"></div>
+
+	<div class="ui-widget">
+ <div class="p2 ui-widget-header ui-corner-top">
+Status </div>
+ <div class="p4 ui-widget-content ui-corner-bottom">
+<strong>Host:&nbsp;</strong><a href="/pnp4nagios/graph?host=00204ACA817F">00204ACA817F<br></a><strong>Service:&nbsp;</strong><a href="/pnp4nagios/graph?host=00204ACA817F&amp;srv=SideOlemasolu">SideOlemasolu<br></a><strong>Last Check:&nbsp;</strong>08.09.13 10:15<br> </div>
+</div>
+<p>
+
+
+	
+	
+	<div class="ui-widget">
+<div class="p2 ui-widget-header ui-corner-top">
+Time ranges
+</div>
+<div class="p4 ui-widget-content ui-corner-bottom">
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu">Overview</a><br>
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu&view=0">4 Hours</a><br>
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu&view=1">25 Hours</a><br>
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu&view=2">One Week</a><br>
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu&view=3">One Month</a><br>
+<a class="multi0" href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu&view=4">One Year</a><br>
+</div>
+</div><p>
+
+	<div class="ui-widget">
+ <div class="p2 ui-widget-header ui-corner-top">
+ Services 
+ </div>
+<div class="p4 ui-widget-content ui-corner-bottom">
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::AegStardist"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=AegStardist" class="multi0 inactive" title="AegStardist">AegStardist</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Akupinge"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Akupinge" class="multi0 active" title="Akupinge">Akupinge</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Avariinivoo"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Avariinivoo" class="multi0 active" title="Avariinivoo">Avariinivoo</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Elektritoide"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Elektritoide" class="multi0 active" title="Elektritoide">Elektritoide</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::KilbiTemperatuur"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=KilbiTemperatuur" class="multi0 active" title="KilbiTemperatuur">KilbiTemperatuur</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::PumbaKoormused"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=PumbaKoormused" class="multi0 active" title="PumbaKoormused">PumbaKoormused</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::PumbaOlekud"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=PumbaOlekud" class="multi0 active" title="PumbaOlekud">PumbaOlekud</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::PumbaRikked"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=PumbaRikked" class="multi0 active" title="PumbaRikked">PumbaRikked</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::PumbaTunnid"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=PumbaTunnid" class="multi0 active" title="PumbaTunnid">PumbaTunnid</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::PumbaVoolud"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=PumbaVoolud" class="multi0 active" title="PumbaVoolud">PumbaVoolud</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::SideOlemasolu"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=SideOlemasolu" class="multi0 active" title="SideOlemasolu">SideOlemasolu</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Sissetungimine"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Sissetungimine" class="multi0 active" title="Sissetungimine">Sissetungimine</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Veetase"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Veetase" class="multi0 active" title="Veetase">Veetase</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::Versioon"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=Versioon" class="multi0 inactive" title="Versioon">Versioon</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::YlepingePiirik"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=YlepingePiirik" class="multi0 active" title="YlepingePiirik">YlepingePiirik</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_AegSideStardist"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_AegSideStardist" class="multi0 active" title="_AegSideStardist">_AegSideStardist</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_AegStardist"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_AegStardist" class="multi0 active" title="_AegStardist">_AegStardist</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_Liiklusmahud"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_Liiklusmahud" class="multi0 active" title="_Liiklusmahud">_Liiklusmahud</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_PumbaKaitseKontaktor"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_PumbaKaitseKontaktor" class="multi0 active" title="_PumbaKaitseKontaktor">_PumbaKaitseKontaktor</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_PumbasiseneKaitse"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_PumbasiseneKaitse" class="multi0 active" title="_PumbasiseneKaitse">_PumbasiseneKaitse</a><br>
+<span id="basket_action_add"><a title="Add this service to my basket" id="00204ACA817F::_Versioon"><img width=12px height=12px src="/pnp4nagios/media/images/add.png"></a></span>
+<a href="/pnp4nagios/graph?host=00204ACA817F&srv=_Versioon" class="multi0 inactive" title="_Versioon">_Versioon</a><br>
+</div>
+</div>
+<p>
+	<!-- Logo Box Start -->
+<div class="ui-widget">
+<div class="logo ui-widget-content ui-corner-all" >
+<a href="http://www.pnp4nagios.org"><img src="/pnp4nagios/media/images/pnp.png"></a>
+<a href="http://www.rrdtool.org"><img src="/pnp4nagios/media/images/rrdtool.png"></a>
+</div>
+</div>
+<!-- Logo Box End -->
+
+	</div>
+    </td></tr>
+	<tr valign="top"><td colspan="2">
+
+	</td></tr></table>
+</div>
+</body>
+</html>
+
