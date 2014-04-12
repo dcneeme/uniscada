@@ -12,8 +12,7 @@
 
 # Import modules for CGI handling 
 import cgi, cgitb ,re
-cgitb.enable() # neeme lisas 21.01.2012
-
+cgitb.enable() 
 from sqlite3 import dbapi2 as sqlite3 
 #import sqlite3 # ? 
 

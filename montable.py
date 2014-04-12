@@ -5,6 +5,7 @@
 # 03.01.2014 kui olek on olemas, on ta enne value vaartust. sel juhul olekut ei naita, vaid varvime vaartuse rea vastavalt olekule roh koll pun
 # 15.02.2014 nahtavale uuesti xxS teenused ja kogu asi ilusamaks
 
+''' simple html tablke for fast viewing of monitoring data (Nagios is slow compared to this even with 3 s refresh rate!) '''
 
 
 def output(register,value='puudub!',age=999,status=9): 
@@ -91,9 +92,22 @@ else:
 
     
 #env muutuja HTTP_COOKIE sisaldab kasulikku infot kui paring labi nagiose serveri teha. 
-USER=os.environ['HTTP_COOKIE'].split('=')[1].split(':')[0] # kasutaja eraldamine jargmisest infost
-#'itvilla_com=neeme:27:f64d55b0f00b13446324e4e2af901fa8; CookieAuth_Redirect=; CookieAuth_Reason='
+try:
+    USER=os.environ['HTTP_COOKIE'].split(';')[2].split('=')[1].split(':')[0] # kasutajanime eraldamine jargmisest infost
+    '''   # {'HTTP_COOKIE': '__utma=189087091.2060586936.1392656182.1392656182.1392656182.1; __utmz=189087091.1392656182.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); 
+    itvilla_com=neeme:33:e14dba6b98611dc7ff225f01c9e1be8e; CookieAuth_Redirect=; 
+    CookieAuth_Reason=', 'SERVER_SOFTWARE': 'Apache/2.2.23 (BaseN)', 'SCRIPT_NAME': '/conf/v1/montable.py', 'SERVER_SIGNATURE': '
+Apache/2.2.23 (BaseN) Server at receiver.itvilla.com Port 80\n', 'REQUEST_METHOD': 'GET', 'SERVER_PROTOCOL': 'HTTP/1.1', 
+'QUERY_STRING': 'mac=D05162F46081', 'PATH': '/sbin:/usr/sbin:/bin:/usr/bin', 
+'HTTP_USER_AGENT': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.154 Safari/537.36', 'HTTP_CONNECTION': 'keep-alive', 'HTTP_REFERER': 'http://receiver.itvilla.com/conf/v1/montable.py?mac=D05162F46081', 'SERVER_NAME': 'receiver.itvilla.com', 'REMOTE_ADDR': '195.222.15.51', 'SERVER_PORT': '80', 'SERVER_ADDR': '46.183.73.35', 'DOCUMENT_ROOT': '/var/www/html', 'SCRIPT_FILENAME': '/var/www/v1/montable.py', 'SERVER_ADMIN': 'root@localhost', 'HTTP_HOST': 'receiver.itvilla.com', 'HTTP_CACHE_CONTROL': 'max-age=0', 'REQUEST_URI': '/conf/v1/montable.py?mac=D05162F46081', 'HTTP_ACCEPT': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 'GATEWAY_INTERFACE': 'CGI/1.1', 'REMOTE_PORT': '4420', 'HTTP_ACCEPT_LANGUAGE': 'et-EE,et;q=0.8,en-US;q=0.6,en;q=0.4', 'HTTP_ACCEPT_ENCODING': 'gzip,deflate,sdch'}
+'itvilla_com=neeme:27:f64d55b0f00b13446324e4e2af901fa8; CookieAuth_Redirect=; CookieAuth_Reason='
 
+'''
+
+except:
+    print('error: no cookie')
+    exit()
+    
 if USER == '' or USER == None:
     print 'Error: no username supplied! </body></html>'
     exit()

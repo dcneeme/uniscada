@@ -87,10 +87,10 @@ def printbutton(what,mode): # trykkigu status ja nupp tabeli cellis nii et nupul
     if (mode&1) == 0: # ei ole muutumas.  
         if (mode&2) == 2: # button vajalik
             if what == "ON": # lisame nupu ja lopetame pooliku celli
-                print "<input "+dis+" type='button' style='float:center; position:relative; height:20px; width:35px; background-color:red; color:yellow;' value='OFF' onclick=location.href='http://46.183.73.35/conf/cmd2controller.py?mac="+mac+"&reg="+reg+"&val="+val+"'  title='V&auml;ljal&uuml;litamine' /></td>" 
+                print "<input "+dis+" type='button' style='float:center; position:relative; height:20px; width:35px; background-color:red; color:yellow;' value='OFF' onclick=location.href='https://receiver.itvilla.com/conf/cmd2controller.py?mac="+mac+"&reg="+reg+"&val="+val+"'  title='V&auml;ljal&uuml;litamine' /></td>" 
                 # selle nupu vajutus lylitagu valja
             if what == "OFF":  # lisame nupu ja lopetame pooliku celli
-                print "<input "+dis+" type='button' style='float:center; position:relative; height:20px; width:35px; background-color:limegreen;color:yellow;' value='ON' onclick=location.href='http://46.183.73.35/conf/cmd2controller.py?mac="+mac+"&reg="+reg+"&val="+val+"' title='Sissel&uuml;litamine' /></td>" 
+                print "<input "+dis+" type='button' style='float:center; position:relative; height:20px; width:35px; background-color:limegreen;color:yellow;' value='ON' onclick=location.href='https://receiver.itvilla.com/conf/cmd2controller.py?mac="+mac+"&reg="+reg+"&val="+val+"' title='Sissel&uuml;litamine' /></td>" 
                 # selle nupu vajutus lylitagu sisse, hetkel on valjas
                 
     else: # on muutumas
@@ -438,12 +438,12 @@ for rown in range(len(rows.split(','))): # iga rea jaoks indexiga row 0...
 print "</tr>\n</table>\n<br>\n"  # lopetame tabeli
 
     
-print "<p><input "+diss+" type='button' style='height:25px; width:200px; background-color:"+color+";' value='Kustuta ootel korraldused' onclick=location.href='http://46.183.73.35/conf/cmd2controller.py?mac="+mac+"&cmd=CLEAR'>" # ootel maha
+print "<p><input "+diss+" type='button' style='height:25px; width:200px; background-color:"+color+";' value='Kustuta ootel korraldused' onclick=location.href='https://receiver.itvilla.com/conf/cmd2controller.py?mac="+mac+"&cmd=CLEAR'>" # ootel maha
 print ootel # mis ootel on newstate alusel?
 # peaks aga kontrollima kas on ootel midagi yldse!
 
     
-print "<p><A HREF=http://46.183.73.35/conf/bn3setup1.py?mac="+str(mac)+"&file="+filename1+" > <b>Seadistusparameetrid </b></A>"
+print "<p><A HREF=https://receiver.itvilla.com/conf/bn3setup1.py?mac="+str(mac)+"&file="+filename1+" > <b>Seadistusparameetrid </b></A>"
 print " juhtkontrolleris - vajaduseta mitte muuta! <b><br>"
 
 print "</body></html>\n"
