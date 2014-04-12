@@ -124,13 +124,13 @@ class Session:
         cur=self.conn.cursor()
         rows={}
         # 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup)
-        if query == 'hostgroups':
+        if (query == 'hostgroups' and filter == None):
             Cmd="select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid" # gruppide loetelu
             rows = cur.execute(Cmd).fetchall()
             self.conn.commit()
             return json.dumps( [dict(ix) for ix in rows] )
 
-        elif query == 'hostgroup':
+        elif query == 'hostgroups':
             #filter=filter
             Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # gruppide loetelu
             #print(Cmd) # debug
@@ -144,13 +144,13 @@ class Session:
                 hgdata['hosts'].append(hdata)
             return json.dumps(hgdata)
 
-        elif query == 'servicegroups': # list servicegroups without services in use for hosts
+        elif (query == 'servicegroups' and filter == None): # list servicegroups without services in use for hosts
             Cmd="select servicegroup from ws_hosts group by servicegroup" # gruppide loetelu lihtsalt, pole tegelikult vaja, hostide infos olemas
             rows = cur.execute(Cmd).fetchall()
             self.conn.commit()
             return json.dumps( [dict(ix) for ix in rows] )
 
-        elif query == 'servicegroup': # services in the servicegroup to be returned
+        elif query == 'servicegroups': # services in the servicegroup to be returned
             #filter=filter
             #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
             Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter #
@@ -463,23 +463,15 @@ if __name__ == '__main__':
 
     # Get data from fields
     query =  form.getvalue('query')
-    if query == 'hostgroups': # START WITH THIS query! otherwise the rest will fail.
-        filter=''
+    if query == None:
+        print('query parameter missing') # debug
+        sys.exit()
 
-    elif query == 'hostgroup':
+    elif query == 'hostgroups': # START WITH THIS query! otherwise the rest will fail.
         filter = form.getvalue('hostgroup')
-        if filter == None or filter == '':
-            print('missing hostgroup parameter') # debug
-            exit()
 
     elif query == 'servicegroups':
-        filter=''
-
-    elif query == 'servicegroup':
         filter = form.getvalue('servicegroup')
-        if filter == None or filter == '':
-            print('missing servicegroup parameter') # debug
-            exit() # missing servicegroup
 
     elif query == 'services': # return service update information as pushed via websocket
         filter=''
