@@ -122,7 +122,7 @@ class Session:
         cur=self.conn.cursor()
         rows = cur.execute(Cmd).fetchall()
         self.conn.commit()
-        return json.dumps( [dict(ix) for ix in rows] )
+        return json.dumps( [dict(ix) for ix in rows] , indent=4)
 
     def _hostgroups2json(self):
         return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
@@ -143,7 +143,7 @@ class Session:
             hdata['servicegroup']=row[1]
             hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
             hgdata['hosts'].append(hdata)
-        return json.dumps(hgdata)
+        return json.dumps(hgdata, indent=4)
 
     def _servicegroup2json(self, filter):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -221,7 +221,7 @@ class Session:
 
                 hgdata['services'].append(hdata)
 
-        return json.dumps(hgdata)
+        return json.dumps(hgdata, indent=4)
 
 
     def sql2json(self, query = 'hostgroup', filter = 'saared'):
@@ -428,7 +428,7 @@ class Session:
         self.conn.execute(Cmd)
         self.conn.commit()
         #print data # debug
-        return json.dumps(data)
+        return json.dumps(data, indent=4)
 
 
 
