@@ -439,6 +439,7 @@ class Session:
 
 if __name__ == '__main__':
 
+    BASE_URI = '/api/v1'
     COOKIEAUTH_DOMAIN = 'itvilla_com'
 
     USER = None
@@ -467,15 +468,25 @@ if __name__ == '__main__':
 
     # Get data from fields
     query =  form.getvalue('query')
+    filter = None
+
+    if query == None:
+        uri = os.environ.get('REQUEST_URI').replace(BASE_URI + '/', '').split('/')
+        query = uri[0]
+        if len(uri) > 1:
+            filter = uri[1]
+
     if query == None:
         print('query parameter missing') # debug
         sys.exit()
 
-    elif query == 'hostgroups': # START WITH THIS query! otherwise the rest will fail.
-        filter = form.getvalue('hostgroup')
+    elif query == 'hostgroups':
+        if filter == None:
+            filter = form.getvalue('hostgroup')
 
     elif query == 'servicegroups':
-        filter = form.getvalue('servicegroup')
+        if filter == None:
+            filter = form.getvalue('servicegroup')
 
     elif query == 'services': # return service update information as pushed via websocket
         filter=''
