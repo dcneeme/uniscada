@@ -7,10 +7,7 @@
 ''' USAGE
 
 from monpanel import *
-s=Session() # instance tekitamine
-s.sqlread('/srv/scada/sqlite/controller.sql')  # tables in memory
-s.sqlread('/srv/scada/sqlite/ws_hosts.sql')
-s.sqlread('/srv/scada/sqlite/servicebuffer.sql')
+s=Session() # instance tekitamine, teeb ka abitabeleid
 
 #print FROM,USER
 nagiosdata=s.get_userdata_nagios(FROM,USER)
@@ -35,7 +32,7 @@ import traceback
 import os
 import sys  
 reload(sys)
-sys.setdefaultencoding('utf-8')  # proovime kas aitab? reload() vajalik!! aga voib midagi unstu keeata py2 jaoks! aga py3 ongi utf8 default.
+sys.setdefaultencoding('utf-8')  # proovime kas aitab? reload() vajalik!! AITAS! aga voib midagi untsu keerata py2 jaoks! py3 ongi utf8 default.
 import requests  #  subprocess
 import json
 query=''
@@ -56,9 +53,15 @@ class Session:
         #self.conn2.text_factory = str # tapitahtede voimaldamiseks
         self.conn2.text_factory = lambda x: unicode(x, "utf-8", "ignore")
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
+        
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,timestamp NUMERIC); \
             CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key);COMMIT;")
-        self.conn.commit()
+        self.conn.commit() #created servicebuffer
+        
+        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
+        self.conn.commit() # created ws_hosts
+        
+        self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
  
     def get_userdata_nagios(self,FROM,USER):
         '''Gets data fro user USER from Nagios FROM '''
@@ -128,9 +131,9 @@ class Session:
             return json.dumps( [dict(ix) for ix in rows] )
 
         elif query == 'hostgroup':
-            filter=filter
+            #filter=filter
             Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # gruppide loetelu
-            print(Cmd) # debug
+            #print(Cmd) # debug
             cur.execute(Cmd)
             hdata={}
             hgdata = {"hostgroup":filter, "hosts":[] }
@@ -148,80 +151,82 @@ class Session:
             return json.dumps( [dict(ix) for ix in rows] )
 
         elif query == 'servicegroup': # services in the servicegroup to be returned
-            filter=filter
+            #filter=filter
             #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
-            Cmd="select sta_reg, val_reg, svc_name, out_unit, val_reg, desc0,desc1, desc2, multiperf, multivalue, multicfg from "+filter # 
+            Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter # 
             #print(Cmd) # debug
             cur.execute(Cmd) #
-            hgdata = {"servicegroup":filter, "services":[] }
+            hgdata = {"servicegroup": filter, "services":[] }
             for row in cur:
                 hdata={}
                 sta_reg=row[0]
                 val_reg=row[1]
                 hdata['svc_name']=row[2]
                 unit=row[3]
-                val_reg=row[4] # show is based mostly on that
                 desc=[]
+                desc.append(row[4].encode('utf-8').strip()) # to avoid errors of utf8 codec
                 desc.append(row[5].encode('utf-8').strip()) # to avoid errors of utf8 codec
                 desc.append(row[6].encode('utf-8').strip()) # to avoid errors of utf8 codec
-                desc.append(row[7].encode('utf-8').strip()) # to avoid errors of utf8 codec
-                multiperf=row[8]
-                multivalue=row[9] # to be shown in the end of desc after colon
+                multiperf=row[7]
+                multivalue=row[8] # to be shown in the end of desc after colon
                 try: # igas teenusetabelis ei ole esialgu seda tulpa
-                    multicfg=row[10] # configurable 
+                    multicfg=row[9] # configurable 
                 except:
                     multicfg=''
                 
-                # key finding, depends....
+                # key finding, depends.... svc_name can be used instead of key in fact.
                 if ((val_reg[-1:] == 'V' or val_reg[-1:] == 'W') and sta_reg[-1:] =='S'): # single perf or multiperf service. must have sta_reg too.
-                    hdata['show']=True
-                    hdata['key']=val_reg
+                    show=True
+                    key=val_reg
                 elif (val_reg == '' and sta_reg[-1:] == 'S'): # status, single on/off, value will be the same as status for grapring via perf
-                    hdata['show']=True
-                    hdata['key']=sta_reg
+                    show=True
+                    key=sta_reg
                 elif (val_reg != '' and sta_reg == ''): # no status, must be general setup variable or cmd, not related to service configuration
-                    hdata['show']=True
-                    hdata['key']=val_reg
+                    show=False
+                    key=val_reg
                 else:
-                    print 'strange service',sta_reg,val_reg # debug
-                    hdata['key']='?'+sta_reg+val_reg+'?'
-                    hdata['show']=False
+                    #print 'strange service',sta_reg,val_reg # debug
+                    key='' # '?'+sta_reg+val_reg+'?' # neid ei naita, kuna teenustetabelis defineerimata
+                    show=False
+                
+                if key != '': # skip if no key
+                    hdata['key']=key
+                    hdata['show']=show
+                    # members status and desc
+                    mperf=multiperf.split(' ')
+                    mvalue=multivalue.split(' ')
+                    print 'key,mperf,mvalue',key,mperf,mvalue # debug
                     
-                
-                 # members status and desc
-                mperf=multiperf.split(' ')
-                mvalue=multivalue.split(' ')
-                
-                hdata['description']=[]
-                for dm in range(len(desc)): # desc0 desc1 desc2 processing
-                    desc_dm=''
-                    description={}
-                    description['status']=dm # 0 1 2 
+                    hdata['description']=[]
+                    for dm in range(len(desc)): # desc0 desc1 desc2 processing
+                        desc_dm=''
+                        description={}
+                        description['status']=dm # 0 1 2 
+                        
+                        if (len(mvalue) > 0 and len(mperf) > 0): # there are members, some members to be shown too
+                            if ':' in desc[dm]: # show values only if colon in desc
+                                for m in range(len(mperf)): 
+                                    if str(m+1) in mvalue:
+                                        desc_dm=desc[dm]+' {{ '+mperf[m]+'.val }}'+unit
+                        description['cfg']=desc_dm
+                        hdata['description'].append(description)
                     
-                    if (len(mvalue) > 0 and len(mperf) > 0): # there are members, some members to be shown too
-                        if ':' in desc[dm]: # show values only if colon in desc
-                            for m in range(len(mperf)): 
-                                if str(m+1) in mvalue:
-                                    desc_dm=desc[dm]+' {{ '+mperf[m]+'.val }}'+unit
-                    description['cfg']=desc_dm
-                    hdata['description'].append(description)
-                
-                hdata['multiperf']=[]
-                for dm in range(len(mperf)): # multicfg processing
-                    desc_dm=''
-                    description={}
-                    description['member']=dm # 0+1...
-                    description['name']=mperf[dm]
-                    if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
-                            for m in range(len(mperf)): 
-                                if str(m+1) in multicfg:
-                                    description['cfg']=True
-                                else:
-                                    description['cfg']=False
-                                    
-                    hdata['multiperf'].append(description)
-                
-                hgdata['services'].append(hdata)
+                    hdata['multiperf']=[]
+                    for dm in range(len(mperf)): # multicfg processing
+                        desc_dm=''
+                        description={}
+                        description['member']=dm # 0+1...
+                        description['name']=mperf[dm]
+                        if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
+                                for m in range(len(mperf)): 
+                                    if str(m+1) in multicfg:
+                                        description['cfg']=True
+                                    else:
+                                        description['cfg']=False
+                                        
+                        hdata['multiperf'].append(description)
+                    
+                    hgdata['services'].append(hdata)
                 
             return json.dumps(hgdata)
 
@@ -237,10 +242,46 @@ class Session:
         #print rows # debug
 
 
+    def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
+        cur=self.conn.cursor() # peaks olema soltumatu kursor
+        sta_reg=''
+        val_reg=''
+        staTrue=False
+        staExists=False
+        valExists=False
+        key=''
+        Cmd="select servicetable from controller where mac='"+hid+"'" 
+        cur.execute(Cmd)
+        for row in cur: # one row
+            servicetable=row[0]
+        Cmd="select sta_reg, val_reg from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
+        cur.execute(Cmd)
+        for row in cur: # one row
+            #svc_name=row[0]
+            sta_reg=row[0]
+            val_reg=row[1]
+            
+        if sta_reg !='': # sta_reg in use
+            staExists=True
+            if register == sta_reg:
+                staTrue=True
+            elif register == val_reg:
+                staTrue=False
+            key=val_reg # in most cases
+                    
+        if val_reg !='': # val_reg exist
+            valExists=True
+            if register == sta_reg:
+                staTrue=True
+            elif register == val_reg:
+                staTrue=False
+            key=val_reg # in most cases
+        
+        return key,staTrue,staExists,valExists # '',False,False,False if not defined in servicetable
+    
+    
 
-
-
-    def nagios_hosts2sql(self, data, table = 'ws_hosts'): # nagiosdata is tuple: groupdata, user_data
+    def nagios_hosts2sql(self, data, table = 'ws_hosts'): # incoming data is tuple: groupdata, user_data. fills ws_hosts
         ''' data from nagios put into tuple data
         [{u'saared': {u'alias': u'saared', u'members': {u'00204AB80BF9': u'saared tempa kanal'}}},
         {u'saared': {}, u'kvv': {u'00204AB80BF9': u'saared tempa kanal'}}}]
@@ -257,7 +298,7 @@ class Session:
             for hid in groupdata.keys():
                 halias=groupdata.get(hid)
                 Cmd="insert into "+table+"(hid,halias,ugid) values('"+hid+"','"+halias+"','"+gid+"')"
-                print(Cmd) # debug
+                #print(Cmd) # debug
                 self.conn.execute(Cmd)
 
         for gid in data[1].keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
@@ -271,7 +312,7 @@ class Session:
                 for row in cur:
                     servicetable=str(row[0])
                     Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
-                print(Cmd) # debug
+                #print(Cmd) # debug
                 self.conn.execute(Cmd)
                 
         Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
@@ -280,8 +321,7 @@ class Session:
             servicetable=str(row[0])
             self.sqlread('/srv/scada/sqlite/'+servicetable+'.sql')
                 
-        Cmd="drop table if exists controller" # no need for this any more, free some memory
-        #self.conn.execute(Cmd) # keep controller for debugging
+        # controller and used servicetables must remain accessible in memory 
         self.conn.commit()
 
     
@@ -294,12 +334,12 @@ class Session:
         if self.ts_last == 0:
             ts_last = self.ts - 300 # first execution, limit the number of selected records (no id filter here until FIXME!)
         
-        #  servicebuffer(hid,key,status,value,timestamp) via conn
+        #  servicebuffer(hid,svc_name,sta_reg,status INT,val_reg,value,timestamp NUMERIC) via conn
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction for servicebuffer
         #Cmd="select mac,register,value from state where timestamp+0>"+str(self.ts_last) # use last ts here
         Cmd="select mac,register,value,timestamp from state where timestamp+0>"+str(self.ts_last)+" and (mac='00204AA95C56' or mac='00204AB80D57')" # debug, limit the hosts
-        print(Cmd) # debug
+        #print(Cmd) # debug
         cur2.execute(Cmd)
         self.conn2.commit()
         for row in cur2:
@@ -308,40 +348,42 @@ class Session:
             value=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
             timestamp=row[3]
             #print('hid,register,value',hid,register,value) # debug
-            if (register[-1:] == 'V' or register[-1:] == 'W'): # convert to S, value to value
-                key=register[-1:]+'S'
-                status=None # wait for pairing data
-                
-            elif register[-1:] == 'S': # status from host
-                key=register
-                status=int(eval(value))  # both value and status are the same, needed for perf data graphs
-                
-            else: # probably general setup data or something 
-                key=register
-                value=value
-                status=-1 # status not in use
             
-            try:
-                #Cmd="insert into servicebuffer(hid,key,status,value,timestamp) values('"+hid+"','"+key+"','"+status+"','"+value+"','"+str(self.ts)+"')"
-                Cmd="insert into servicebuffer(hid,key,status,value,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(timestamp)+"')" # orig timestamp
-                self.conn.execute(Cmd)
-            except:
-                #traceback.print_exc() # debug insert
-                #return 2 # debug
-                if status != None:
-                    Cmd="update servicebuffer set status='"+str(status)+"' where key='"+key+"' and hid='"+hid+"'"
-                elif value !='':
-                    Cmd="update servicebuffer set value='"+value+"' where key='"+key+"' and hid='"+hid+"'"
-                self.conn.execute(Cmd)
-            #print(Cmd) # debug, what was selected
+            regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists # all but first are True / False
+            key=regkey[0]
+            if regkey[1] == True: # status
+                status=int(value) # replace value with status
+                if regkey[3] == False:
+                    value=str(status)
+                
+            if regkey[1] == False: # value
+                if regkey[2] == False: # no status
+                    status=0 # or -1?
+            
+            if key != '': # service defined in serviceregister
+                try:
+                    Cmd="insert into servicebuffer(hid,key,status,value,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(timestamp)+"')" # orig timestamp
+                    self.conn.execute(Cmd)
+                except:
+                    #traceback.print_exc() # debug insert
+                    #return 2 # debug
+                    if regkey[1] == True: # status
+                        Cmd="update servicebuffer set status='"+str(status)+"' where key='"+key+"' and hid='"+hid+"'" # no change to value
+                    else: # must be value
+                        Cmd="update servicebuffer set value='"+value+"' where key='"+key+"' and hid='"+hid+"'"
+                    self.conn.execute(Cmd)
+                #print(Cmd) # debug, what was selected
  
         self.conn.commit() # servicebuffer transaction end
         self.ts_last = self.ts
         return 0
     
     
+        
+    
     def buffer2json(self): 
         '''  Returns json for service refresh in websocket client '''
+        #servicebuffer(hid,key,status INT,value,timestamp NUMERIC)
         cur=self.conn.cursor()
         cur2=self.conn.cursor()
         Cmd="BEGIN IMMEDIATE TRANSACTION"
@@ -358,7 +400,7 @@ class Session:
             hdata['host']=hid
             hdata['services']=[]
             hdata['timestamp']=self.ts # current time, not the time from hosts
-            # servicebuffer(hid,key,status INT,value,timestamp NUMERIC);
+            # servicebuffer(hid,svc_name,status INT,value,timestamp NUMERIC);
             Cmd="select * from servicebuffer where status IS NOT NULL and value<>'' and hid='"+hid+"'" # 
             cur2.execute(Cmd)    
             for row2 in cur2: # services loop
@@ -369,15 +411,19 @@ class Session:
                 sdata['key']=key
                 sdata['status']=status
                 sdata['value']=[]
-                valmems=value.split(' ')
+                if key[-1:] == 'W':
+                    valmems=value.split(' ') # only if key ends with W
+                else:
+                    valmems=[value] # single value
+                
                 for mnum in range(len(valmems)): # value member loop
                     valmember={}
                     valmember['member']=mnum+1
                     valmember['val']=valmems[mnum]
-                sdata['value'].append(valmember) # member ready
-            hdata['services'].append(sdata) # host ready
-        print('hdata: ',hdata) # debug
-        data.append(hdata)
+                    sdata['value'].append(valmember) # member ready
+                hdata['services'].append(sdata) # service ready
+            #print('hdata: ',hdata) # debug
+            data.append(hdata) # host ready
         
             
         Cmd="delete from servicebuffer where status IS NOT NULL and value<>''"
@@ -392,36 +438,12 @@ class Session:
 
 
 
-
-
 if __name__ == '__main__':
 
-    # Create instance of FieldStorage
-    form = cgi.FieldStorage()
-
-    # Get data from fields
-    query =  form.getvalue('query')
-    if query == 'hostgroups':
-        pass
-    elif query == 'hostgroup':
-        hostgroup = form.getvalue('hostgroup')
-        if hostgroup == None or hostgroup == '':
-            print('missing hostgroup parameter') # debug
-            exit()
-    elif query == 'servicegroups':
-        pass
-    elif query == 'servicegroup':
-        servicegroup = form.getvalue('servicegroup')
-        if servicegroup == None or servicegroup == '':
-            print('missing servicegroup parameter') # debug
-            exit() # missing servicegroup
-    else:
-        print('illegal query parameter',query) # debug
-        #exit() # illegal query, comment for debugging
-
-
-
-
+    # starting with http output
+    print("Content-type: application/json")
+    print
+    
     #env muutuja HTTP_COOKIE sisaldab kasulikku infot kui paring labi nagiose serveri teha.
     try:
         USER=os.environ['HTTP_COOKIE'].split(';')[2].split('=')[1].split(':')[0] # should be in a separate class for shared use
@@ -441,20 +463,62 @@ if __name__ == '__main__':
 
 
 
-    # starting with http output
-    print "Content-type: application/json"
-    print
+    
 
     USER='sdtoomas' # debug, kui kommenteerida, votab kasutaja cookie alusel.
 
-    
-    
-
     s=Session()
-    s.sqlread('/srv/scada/sqlite/controller.sql') # kontrollerite id ja servicetables, samuti nagiose aadress.
-    s.sqlread('./ws_hosts.sql') # for each s an independent table in memory will be created
-    
-    nagiosdata=s.output(s.get_userdata_nagios(FROM, USER)) # get user rights relative to the hosts
-    s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table
-    s.dump_table() # show ws_hosts content
 
+    # Create instance of FieldStorage
+    form = cgi.FieldStorage()
+
+    # Get data from fields
+    query =  form.getvalue('query')
+    if query == 'hostgroups': # START WITH THIS query! otherwise the rest will fail.
+        nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
+        s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
+        
+        print(s.sql2json(query = query, filter = '')) # outputs json
+        
+    elif query == 'hostgroup':
+        hostgroup = form.getvalue('hostgroup')
+        if hostgroup == None or hostgroup == '':
+            print('missing hostgroup parameter') # debug
+            exit()
+        else:
+            nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts # NOT NEEDED IF THE SESSION IS ALIVE
+            s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory # NOT NEEDED IF THE SESSION IS ALIVE
+        
+            print(s.sql2json(query = query, filter = hostgroup))
+            
+    elif query == 'servicegroups':
+        nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts # NOT NEEDED IF THE SESSION IS ALIVE
+        s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory # NOT NEEDED IF THE SESSION IS ALIVE
+        
+        print(s.sql2json(query = query, filter = ''))
+        
+    elif query == 'servicegroup':
+        servicegroup = form.getvalue('servicegroup')
+        if servicegroup == None or servicegroup == '':
+            print('missing servicegroup parameter') # debug
+            exit() # missing servicegroup
+        else:
+            nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts # NOT NEEDED IF THE SESSION IS ALIVE
+            s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory # NOT NEEDED IF THE SESSION IS ALIVE
+        
+            print(s.sql2json(query = query, filter = servicegroup))
+            
+    elif query == 'services': # return service update information as pushed via websocket
+        nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts # NOT NEEDED IF THE SESSION IS ALIVE
+        s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory # NOT NEEDED IF THE SESSION IS ALIVE
+        
+        s.state2buffer() # read state to find updates, temporary polling!!
+        print(s.buffer2json()) # service update json generation
+        
+    else:
+        print('illegal query parameter',query) # debug
+        #exit() # illegal query, comment for debugging
+        pass
+
+    
+    

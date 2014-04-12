@@ -5,7 +5,7 @@
 # 03.01.2014 kui olek on olemas, on ta enne value vaartust. sel juhul olekut ei naita, vaid varvime vaartuse rea vastavalt olekule roh koll pun
 # 15.02.2014 nahtavale uuesti xxS teenused ja kogu asi ilusamaks
 
-''' simple html tablke for fast viewing of monitoring data (Nagios is slow compared to this even with 3 s refresh rate!) '''
+''' simple html table for fast viewing of monitoring data (Nagios is slow compared to this even with 3 s refresh rate!) '''
 
 
 def output(register,value='puudub!',age=999,status=9): 
