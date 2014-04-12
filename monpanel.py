@@ -468,7 +468,7 @@ if __name__ == '__main__':
 
     elif query == 'hostgroup':
         filter = form.getvalue('hostgroup')
-        if hostgroup == None or hostgroup == '':
+        if filter == None or filter == '':
             print('missing hostgroup parameter') # debug
             exit()
 
