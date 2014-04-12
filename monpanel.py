@@ -3,6 +3,7 @@
 #
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
 
+DEBUG = True
 
 ''' USAGE
 
@@ -456,7 +457,8 @@ if __name__ == '__main__':
     print("Content-type: application/json")
     print
 
-    USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
+    if DEBUG:
+        USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
 
     s=Session()
 
