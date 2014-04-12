@@ -157,7 +157,7 @@ class Session:
             #print(Cmd) # debug
             cur.execute(Cmd) #
             hgdata = {"servicegroup": filter, "services":[] }
-            for row in cur:
+            for row in cur: # service loop
                 hdata={}
                 sta_reg=row[0]
                 val_reg=row[1]
@@ -195,10 +195,10 @@ class Session:
                     # members status and desc
                     mperf=multiperf.split(' ')
                     mvalue=multivalue.split(' ')
-                    print 'key,mperf,mvalue',key,mperf,mvalue # debug
+                    #print 'key,mperf,mvalue',key,mperf,mvalue # debug
                     
                     hdata['description']=[]
-                    for dm in range(len(desc)): # desc0 desc1 desc2 processing
+                    for dm in range(len(desc)): # desc0 desc1 desc2 processing ##############################################
                         desc_dm=''
                         description={}
                         description['status']=dm # 0 1 2 
@@ -208,23 +208,19 @@ class Session:
                                 for m in range(len(mperf)): 
                                     if str(m+1) in mvalue:
                                         desc_dm=desc[dm]+' {{ '+mperf[m]+'.val }}'+unit
-                        description['cfg']=desc_dm
+                        description['desc']=desc_dm
                         hdata['description'].append(description)
                     
                     hdata['multiperf']=[]
-                    for dm in range(len(mperf)): # multicfg processing
-                        desc_dm=''
-                        description={}
-                        description['member']=dm # 0+1...
-                        description['name']=mperf[dm]
+                    for mp in range(len(mperf)): # multicfg processing #####################################################
+                        multiperf={}
+                        multiperf['member']=mp # 0+1...
+                        multiperf['name']=mperf[mp]
+                        multiperf['cfg']=False
                         if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
-                                for m in range(len(mperf)): 
-                                    if str(m+1) in multicfg:
-                                        description['cfg']=True
-                                    else:
-                                        description['cfg']=False
-                                        
-                        hdata['multiperf'].append(description)
+                            if str(mp+1) in multicfg:
+                                multiperf['cfg']=True
+                        hdata['multiperf'].append(multiperf)
                     
                     hgdata['services'].append(hdata)
                 
