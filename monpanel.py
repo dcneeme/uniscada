@@ -3,7 +3,7 @@
 #
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
 # 12.04.2014 cougar tegi mitu parendust
-# 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef
+# 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef ning hex float voimalikkus. 2 mac piirang on veel sees !!!
 
 DEBUG = True
 
@@ -240,6 +240,11 @@ class Session:
             else:
                 return self._servicegroup2json(filter)
 
+        if query == 'services':
+            self.state2buffer() # read state to cretate services
+            return self.buffer2json() # output services as json
+
+        
         print('illegal query parameter',query)
         return None
         
