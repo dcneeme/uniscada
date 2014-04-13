@@ -3,6 +3,7 @@
 #
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
 
+DEBUG = True
 
 ''' USAGE
 
@@ -117,126 +118,128 @@ class Session:
             print(row)
         self.conn.commit() # kas on vaja kui transactioni pole?
 
+    def _sqlcmd2json(self, Cmd):
+        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
+        cur=self.conn.cursor()
+        rows = cur.execute(Cmd).fetchall()
+        self.conn.commit()
+        return json.dumps( [dict(ix) for ix in rows] , indent=4)
 
-    def sql2json(self, query = 'hostgroup', filter = 'saared'):
-        ''' Returns json data about hosts and their groups based on query type and optional filtering parameter '''
+    def _hostgroups2json(self):
+        return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
+
+    def _servicegroups2json(self):
+        return self._sqlcmd2json("select servicegroup from ws_hosts group by servicegroup")
+
+    def _hostgroup2json(self, filter):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
         cur=self.conn.cursor()
         rows={}
-        # 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup)
-        if (query == 'hostgroups' and filter == None):
-            Cmd="select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid" # gruppide loetelu
-            rows = cur.execute(Cmd).fetchall()
-            self.conn.commit()
-            return json.dumps( [dict(ix) for ix in rows] )
+        Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # gruppide loetelu
+        cur.execute(Cmd)
+        hdata={}
+        hgdata = {"hostgroup":filter, "hosts":[] }
+        for row in cur:
+            hdata['id']=row[0]
+            hdata['servicegroup']=row[1]
+            hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
+            hgdata['hosts'].append(hdata)
+        return json.dumps(hgdata, indent=4)
 
-        elif query == 'hostgroups':
-            #filter=filter
-            Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # gruppide loetelu
-            #print(Cmd) # debug
-            cur.execute(Cmd)
+    def _servicegroup2json(self, filter):
+        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
+        cur=self.conn.cursor()
+        rows={}
+
+        #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
+        Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter #
+        cur.execute(Cmd) #
+        hgdata = {"servicegroup": filter, "services":[] }
+        for row in cur: # service loop
             hdata={}
-            hgdata = {"hostgroup":filter, "hosts":[] }
-            for row in cur:
-                hdata['id']=row[0]
-                hdata['servicegroup']=row[1]
-                hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
-                hgdata['hosts'].append(hdata)
-            return json.dumps(hgdata)
+            sta_reg=row[0]
+            val_reg=row[1]
+            hdata['svc_name']=row[2]
+            unit=row[3]
+            desc=[]
+            desc.append(row[4].encode('utf-8').strip()) # to avoid errors of utf8 codec
+            desc.append(row[5].encode('utf-8').strip()) # to avoid errors of utf8 codec
+            desc.append(row[6].encode('utf-8').strip()) # to avoid errors of utf8 codec
+            multiperf=row[7]
+            multivalue=row[8] # to be shown in the end of desc after colon
+            try: # igas teenusetabelis ei ole esialgu seda tulpa
+                multicfg=row[9] # configurable
+            except:
+                multicfg=''
 
-        elif (query == 'servicegroups' and filter == None): # list servicegroups without services in use for hosts
-            Cmd="select servicegroup from ws_hosts group by servicegroup" # gruppide loetelu lihtsalt, pole tegelikult vaja, hostide infos olemas
-            rows = cur.execute(Cmd).fetchall()
-            self.conn.commit()
-            return json.dumps( [dict(ix) for ix in rows] )
+            # key finding, depends.... svc_name can be used instead of key in fact.
+            if ((val_reg[-1:] == 'V' or val_reg[-1:] == 'W') and sta_reg[-1:] =='S'): # single perf or multiperf service. must have sta_reg too.
+                show=True
+                key=val_reg
+            elif (val_reg == '' and sta_reg[-1:] == 'S'): # status, single on/off, value will be the same as status for grapring via perf
+                show=True
+                key=sta_reg
+            elif (val_reg != '' and sta_reg == ''): # no status, must be general setup variable or cmd, not related to service configuration
+                show=False
+                key=val_reg
+            else:
+                #print 'strange service',sta_reg,val_reg # debug
+                key='' # '?'+sta_reg+val_reg+'?' # neid ei naita, kuna teenustetabelis defineerimata
+                show=False
 
-        elif query == 'servicegroups': # services in the servicegroup to be returned
-            #filter=filter
-            #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
-            Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter #
-            #print(Cmd) # debug
-            cur.execute(Cmd) #
-            hgdata = {"servicegroup": filter, "services":[] }
-            for row in cur: # service loop
-                hdata={}
-                sta_reg=row[0]
-                val_reg=row[1]
-                hdata['svc_name']=row[2]
-                unit=row[3]
-                desc=[]
-                desc.append(row[4].encode('utf-8').strip()) # to avoid errors of utf8 codec
-                desc.append(row[5].encode('utf-8').strip()) # to avoid errors of utf8 codec
-                desc.append(row[6].encode('utf-8').strip()) # to avoid errors of utf8 codec
-                multiperf=row[7]
-                multivalue=row[8] # to be shown in the end of desc after colon
-                try: # igas teenusetabelis ei ole esialgu seda tulpa
-                    multicfg=row[9] # configurable
-                except:
-                    multicfg=''
+            if key != '': # skip if no key
+                hdata['key']=key
+                hdata['show']=show
+                # members status and desc
+                mperf=multiperf.split(' ')
+                mvalue=multivalue.split(' ')
+                #print 'key,mperf,mvalue',key,mperf,mvalue # debug
 
-                # key finding, depends.... svc_name can be used instead of key in fact.
-                if ((val_reg[-1:] == 'V' or val_reg[-1:] == 'W') and sta_reg[-1:] =='S'): # single perf or multiperf service. must have sta_reg too.
-                    show=True
-                    key=val_reg
-                elif (val_reg == '' and sta_reg[-1:] == 'S'): # status, single on/off, value will be the same as status for grapring via perf
-                    show=True
-                    key=sta_reg
-                elif (val_reg != '' and sta_reg == ''): # no status, must be general setup variable or cmd, not related to service configuration
-                    show=False
-                    key=val_reg
-                else:
-                    #print 'strange service',sta_reg,val_reg # debug
-                    key='' # '?'+sta_reg+val_reg+'?' # neid ei naita, kuna teenustetabelis defineerimata
-                    show=False
+                hdata['description']=[]
+                for dm in range(len(desc)): # desc0 desc1 desc2 processing ##############################################
+                    desc_dm=''
+                    description={}
+                    description['status']=dm # 0 1 2
 
-                if key != '': # skip if no key
-                    hdata['key']=key
-                    hdata['show']=show
-                    # members status and desc
-                    mperf=multiperf.split(' ')
-                    mvalue=multivalue.split(' ')
-                    #print 'key,mperf,mvalue',key,mperf,mvalue # debug
+                    if (len(mvalue) > 0 and len(mperf) > 0): # there are members, some members to be shown too
+                        if ':' in desc[dm]: # show values only if colon in desc
+                            for m in range(len(mperf)):
+                                if str(m+1) in mvalue:
+                                    desc_dm=desc[dm]+' {{ '+mperf[m]+'.val }}'+unit
+                    description['desc']=desc_dm
+                    hdata['description'].append(description)
 
-                    hdata['description']=[]
-                    for dm in range(len(desc)): # desc0 desc1 desc2 processing ##############################################
-                        desc_dm=''
-                        description={}
-                        description['status']=dm # 0 1 2
+                hdata['multiperf']=[]
+                for mp in range(len(mperf)): # multicfg processing #####################################################
+                    multiperf={}
+                    multiperf['member']=mp # 0+1...
+                    multiperf['name']=mperf[mp]
+                    multiperf['cfg']=False
+                    if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
+                        if str(mp+1) in multicfg:
+                            multiperf['cfg']=True
+                    hdata['multiperf'].append(multiperf)
 
-                        if (len(mvalue) > 0 and len(mperf) > 0): # there are members, some members to be shown too
-                            if ':' in desc[dm]: # show values only if colon in desc
-                                for m in range(len(mperf)):
-                                    if str(m+1) in mvalue:
-                                        desc_dm=desc[dm]+' {{ '+mperf[m]+'.val }}'+unit
-                        description['desc']=desc_dm
-                        hdata['description'].append(description)
+                hgdata['services'].append(hdata)
 
-                    hdata['multiperf']=[]
-                    for mp in range(len(mperf)): # multicfg processing #####################################################
-                        multiperf={}
-                        multiperf['member']=mp # 0+1...
-                        multiperf['name']=mperf[mp]
-                        multiperf['cfg']=False
-                        if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
-                            if str(mp+1) in multicfg:
-                                multiperf['cfg']=True
-                        hdata['multiperf'].append(multiperf)
+        return json.dumps(hgdata, indent=4)
 
-                    hgdata['services'].append(hdata)
 
-            return json.dumps(hgdata)
+    def sql2json(self, query = 'hostgroup', filter = 'saared'):
+        if query == 'hostgroups':
+            if filter == None:
+                return self._hostgroups2json()
+            else:
+                return self._hostgroup2json(filter)
 
-        else:
-            print('illegal query parameter',query) # debug
-            return None
+        if query == 'servicegroups':
+            if filter == None:
+                return self._servicegroups2json()
+            else:
+                return self._servicegroup2json(filter)
 
-        try:
-            rows = cur.execute(Cmd).fetchall()
-
-        except:
-            traceback.print_exc()
-        #print rows # debug
-
+        print('illegal query parameter',query)
+        return None
 
     def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
         cur=self.conn.cursor() # peaks olema soltumatu kursor
@@ -426,7 +429,7 @@ class Session:
         self.conn.execute(Cmd)
         self.conn.commit()
         #print data # debug
-        return json.dumps(data)
+        return json.dumps(data, indent=4)
 
 
 
@@ -436,32 +439,27 @@ class Session:
 
 if __name__ == '__main__':
 
+    BASE_URI = '/api/v1'
+    COOKIEAUTH_DOMAIN = 'itvilla_com'
+
+    USER = None
+
+    import Cookie
+    try:
+        USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
+    except (Cookie.CookieError, KeyError, IndexError):
+        print("Status: 401 Not Found")
+        print("Content-type: application/json; charset=utf-8")
+        print
+        print("{\n  \"message\" : \"User not authenticated\"\n}\n")
+        sys.exit(0)
+
     # starting with http output
     print("Content-type: application/json")
     print
 
-    #env muutuja HTTP_COOKIE sisaldab kasulikku infot kui paring labi nagiose serveri teha.
-    try:
-        USER=os.environ['HTTP_COOKIE'].split(';')[2].split('=')[1].split(':')[0] # should be in a separate class for shared use
-        '''   # {'HTTP_COOKIE': '__utma=189087091.2060586936.1392656182.1392656182.1392656182.1; __utmz=189087091.1392656182.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none);
-        itvilla_com=neeme:33:e14dba6b98611dc7ff225f01c9e1be8e; CookieAuth_Redirect=;
-        CookieAuth_Reason=', 'SERVER_SOFTWARE': 'Apache/2.2.23 (BaseN)', 'SCRIPT_NAME': '/conf/v1/montable.py', 'SERVER_SIGNATURE': '
-    Apache/2.2.23 (BaseN) Server at receiver.itvilla.com Port 80\n', 'REQUEST_METHOD': 'GET', 'SERVER_PROTOCOL': 'HTTP/1.1',
-    'QUERY_STRING': 'mac=D05162F46081', 'PATH': '/sbin:/usr/sbin:/bin:/usr/bin',
-    'HTTP_USER_AGENT': 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.154 Safari/537.36', 'HTTP_CONNECTION': 'keep-alive', 'HTTP_REFERER': 'http://receiver.itvilla.com/conf/v1/montable.py?mac=D05162F46081', 'SERVER_NAME': 'receiver.itvilla.com', 'REMOTE_ADDR': '195.222.15.51', 'SERVER_PORT': '80', 'SERVER_ADDR': '46.183.73.35', 'DOCUMENT_ROOT': '/var/www/html', 'SCRIPT_FILENAME': '/var/www/v1/montable.py', 'SERVER_ADMIN': 'root@localhost', 'HTTP_HOST': 'receiver.itvilla.com', 'HTTP_CACHE_CONTROL': 'max-age=0', 'REQUEST_URI': '/conf/v1/montable.py?mac=D05162F46081', 'HTTP_ACCEPT': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 'GATEWAY_INTERFACE': 'CGI/1.1', 'REMOTE_PORT': '4420', 'HTTP_ACCEPT_LANGUAGE': 'et-EE,et;q=0.8,en-US;q=0.6,en;q=0.4', 'HTTP_ACCEPT_ENCODING': 'gzip,deflate,sdch'}
-    'itvilla_com=neeme:27:f64d55b0f00b13446324e4e2af901fa8; CookieAuth_Redirect=; CookieAuth_Reason='
-
-    '''
-
-    except:
-        print 'Error: no cookie with username found!'
-        #exit() # comment for debugging
-
-
-
-
-
-    USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
+    if DEBUG:
+        USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
 
     s=Session()
 
@@ -470,15 +468,25 @@ if __name__ == '__main__':
 
     # Get data from fields
     query =  form.getvalue('query')
+    filter = None
+
+    if query == None:
+        uri = os.environ.get('REQUEST_URI').replace(BASE_URI + '/', '').split('/')
+        query = uri[0]
+        if len(uri) > 1:
+            filter = uri[1]
+
     if query == None:
         print('query parameter missing') # debug
         sys.exit()
 
-    elif query == 'hostgroups': # START WITH THIS query! otherwise the rest will fail.
-        filter = form.getvalue('hostgroup')
+    elif query == 'hostgroups':
+        if filter == None:
+            filter = form.getvalue('hostgroup')
 
     elif query == 'servicegroups':
-        filter = form.getvalue('servicegroup')
+        if filter == None:
+            filter = form.getvalue('servicegroup')
 
     elif query == 'services': # return service update information as pushed via websocket
         filter=''
