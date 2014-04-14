@@ -2,6 +2,8 @@
 # -*- coding: utf_8 -*-
 #
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
+# 12.04.2014 cougar tegi mitu parendust
+# 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef ning hex float voimalikkus. 2 mac piirang on veel sees !!!
 
 DEBUG = True
 
@@ -55,7 +57,7 @@ class Session:
         self.conn2.text_factory = lambda x: unicode(x, "utf-8", "ignore")
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
 
-        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,timestamp NUMERIC); \
+        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC); \
             CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key);COMMIT;")
         self.conn.commit() #created servicebuffer
 
@@ -238,27 +240,36 @@ class Session:
             else:
                 return self._servicegroup2json(filter)
 
+        if query == 'services':
+            self.state2buffer() # read state to cretate services
+            return self.buffer2json() # output services as json
+
+
         print('illegal query parameter',query)
         return None
 
+
     def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
+        ''' Must be used for every service from every host, to use the correct key and recalculate numbers in values '''
         cur=self.conn.cursor() # peaks olema soltumatu kursor
         sta_reg=''
         val_reg=''
         staTrue=False
         staExists=False
         valExists=False
+        conv_coef=None
         key=''
         Cmd="select servicetable from controller where mac='"+hid+"'"
         cur.execute(Cmd)
         for row in cur: # one row
             servicetable=row[0]
-        Cmd="select sta_reg, val_reg from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
+        Cmd="select sta_reg, val_reg,conv_coef from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
         cur.execute(Cmd)
         for row in cur: # one row
             #svc_name=row[0]
             sta_reg=row[0]
             val_reg=row[1]
+            conv_coef=eval(row[2]) if row[2] != '' else None
 
         if sta_reg !='': # sta_reg in use
             staExists=True
@@ -276,7 +287,7 @@ class Session:
                 staTrue=False
             key=val_reg # in most cases
 
-        return key,staTrue,staExists,valExists # '',False,False,False if not defined in servicetable
+        return key,staTrue,staExists,valExists,conv_coef # '',False,False,False if not defined in servicetable
 
 
 
@@ -348,7 +359,7 @@ class Session:
             timestamp=row[3]
             #print('hid,register,value',hid,register,value) # debug
 
-            regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists # all but first are True / False
+            regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists,conv_coef # all but first are True / False
             key=regkey[0]
             if regkey[1] == True: # status
                 status=int(value) # replace value with status
@@ -358,10 +369,11 @@ class Session:
             if regkey[1] == False: # value
                 if regkey[2] == False: # no status
                     status=0 # or -1?
-
+            
+            conv_coef=regkey[4]
             if key != '': # service defined in serviceregister
                 try:
-                    Cmd="insert into servicebuffer(hid,key,status,value,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(timestamp)+"')" # orig timestamp
+                    Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
                     self.conn.execute(Cmd)
                 except:
                     #traceback.print_exc() # debug insert
@@ -406,6 +418,7 @@ class Session:
                 key=row2[1]
                 status=row2[2] # int
                 value=row2[3] #
+                conv_coef=row2[4] # num or none
                 sdata={}
                 sdata['key']=key
                 sdata['status']=status
@@ -418,7 +431,7 @@ class Session:
                 for mnum in range(len(valmems)): # value member loop
                     valmember={}
                     valmember['member']=mnum+1
-                    valmember['val']=valmems[mnum]
+                    valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
                     sdata['value'].append(valmember) # member ready
                 hdata['services'].append(sdata) # service ready
             #print('hdata: ',hdata) # debug
@@ -432,7 +445,37 @@ class Session:
         return json.dumps(data, indent=4)
 
 
+    def stringvalue2scale(self, input = '', conv_coef = None):
+        ''' Accepts string as inputs, divides by conv_coef, returns string as output. 
+            Rounding in use based on conv_coef.
+            Understands hex float strings and converts them to human readable form.
+        '''
+        if conv_coef > 1: # that covers not None too
+            try:
+                if len(input)>10 and not ' ' in input and not '.' in input: # try hex2float conversion for long strings
+                    input=self.floatfromfex(input) # kumulatiivne veekulu siemens magflow 16 char, key TOV
+                output=str(round((eval(input)/conv_coef),2)) # 2kohta peale koma kui jagamistegur > 1
+            except:
+                output=input # ei konverteeri, endiselt string. kuidas aga hex float puhul?
+        else:
+            output=input # no conversion. '1' -> '1', 'text' -> 'text'
+              
+        return output
+        
+        
+    def floatfromhex(self,input): # input in hex, output also string!
+        try:
+            a=int(input,16) # test if valid hex string on input
+        except:
+            return input # no conversion possible
+        
+        sign = int(input[0:2],16) & 128 
+        exponent = (int(input[0:3],16) & 2047)  - 1023
+        if sign == 128:
+            return str(float.fromhex('-0x1.'+input[3:16]+'p'+str(exponent))) # negatiivne
+        return str(float.fromhex('0x1.'+input[3:16]+'p'+str(exponent))) # positiivne
 
+    
 # ##################### MAIN #############################
 
 
