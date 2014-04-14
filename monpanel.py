@@ -125,7 +125,7 @@ class Session:
         cur=self.conn.cursor()
         rows = cur.execute(Cmd).fetchall()
         self.conn.commit()
-        return json.dumps( [dict(ix) for ix in rows] , indent=4)
+        return [dict(ix) for ix in rows]
 
     def _hostgroups2json(self):
         return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
@@ -146,7 +146,7 @@ class Session:
             hdata['servicegroup']=row[1]
             hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
             hgdata['hosts'].append(hdata)
-        return json.dumps(hgdata, indent=4)
+        return hgdata
 
     def _servicegroup2json(self, filter):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -224,7 +224,7 @@ class Session:
 
                 hgdata['services'].append(hdata)
 
-        return json.dumps(hgdata, indent=4)
+        return hgdata
 
 
     def sql2json(self, query = 'hostgroup', filter = 'saared'):
@@ -442,7 +442,7 @@ class Session:
         self.conn.execute(Cmd)
         self.conn.commit()
         #print data # debug
-        return json.dumps(data, indent=4)
+        return data
 
 
     def stringvalue2scale(self, input = '', conv_coef = None):
@@ -544,4 +544,5 @@ if __name__ == '__main__':
     nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
     s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
 
-    print(s.sql2json(query = query, filter = filter)) # outputs json
+    result = s.sql2json(query = query, filter = filter)
+    print json.dumps(result, indent=4) # outputs json
