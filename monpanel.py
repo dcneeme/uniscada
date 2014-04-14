@@ -369,7 +369,7 @@ class Session:
             if regkey[1] == False: # value
                 if regkey[2] == False: # no status
                     status=0 # or -1?
-            
+
             conv_coef=regkey[4]
             if key != '': # service defined in serviceregister
                 try:
@@ -459,23 +459,23 @@ class Session:
                 output=input # ei konverteeri, endiselt string. kuidas aga hex float puhul?
         else:
             output=input # no conversion. '1' -> '1', 'text' -> 'text'
-              
+
         return output
-        
-        
+
+
     def floatfromhex(self,input): # input in hex, output also string!
         try:
             a=int(input,16) # test if valid hex string on input
         except:
             return input # no conversion possible
-        
+
         sign = int(input[0:2],16) & 128 
         exponent = (int(input[0:3],16) & 2047)  - 1023
         if sign == 128:
             return str(float.fromhex('-0x1.'+input[3:16]+'p'+str(exponent))) # negatiivne
         return str(float.fromhex('0x1.'+input[3:16]+'p'+str(exponent))) # positiivne
 
-    
+
 # ##################### MAIN #############################
 
 
