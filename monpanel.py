@@ -44,6 +44,15 @@ FROM='n.itvilla.com/get_user_data?user_name='
 USER='sdmarianne' # :kvv6313    #  'sdtoomas'
 
 
+class SessionException(Exception):
+    def __init__(self, string):
+        self.string = string
+    def __str__(self):
+        return 'Session Error: %s' % self.string
+
+class SessionAuthenitcationError(SessionException):
+    def __init__(self, string=""):
+        SessionException.__init__(self, string)
 
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
@@ -75,13 +84,10 @@ class Session:
             response = json.loads(requests.get(req).content)
             USERCHK=response.get('user_data').get('user_name')
             if USERCHK != USER:
-                print('invalid response',response)
-                exit()
+                raise SessionException('invalid response: ' + str(response))
             return response.get('user_data').get('user_groups'), response.get('user_data').get('hostgroups') # return tuple of [hostgroups,usergroups]
         except:
-            msg='problem with nagios query, '+str(sys.exc_info()[1])
-            print(msg)
-        pass
+            raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
 
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
@@ -125,7 +131,7 @@ class Session:
         cur=self.conn.cursor()
         rows = cur.execute(Cmd).fetchall()
         self.conn.commit()
-        return json.dumps( [dict(ix) for ix in rows] , indent=4)
+        return [dict(ix) for ix in rows]
 
     def _hostgroups2json(self):
         return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
@@ -146,7 +152,7 @@ class Session:
             hdata['servicegroup']=row[1]
             hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
             hgdata['hosts'].append(hdata)
-        return json.dumps(hgdata, indent=4)
+        return hgdata
 
     def _servicegroup2json(self, filter):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -224,10 +230,10 @@ class Session:
 
                 hgdata['services'].append(hdata)
 
-        return json.dumps(hgdata, indent=4)
+        return hgdata
 
 
-    def sql2json(self, query = 'hostgroup', filter = 'saared'):
+    def sql2json(self, query, filter):
         if query == 'hostgroups':
             if filter == None:
                 return self._hostgroups2json()
@@ -244,9 +250,7 @@ class Session:
             self.state2buffer() # read state to cretate services
             return self.buffer2json() # output services as json
 
-
-        print('illegal query parameter',query)
-        return None
+        raise SessionException('illegal query: ' + query)
 
 
     def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
@@ -442,7 +446,7 @@ class Session:
         self.conn.execute(Cmd)
         self.conn.commit()
         #print data # debug
-        return json.dumps(data, indent=4)
+        return data
 
 
     def stringvalue2scale(self, input = '', conv_coef = None):
@@ -487,61 +491,71 @@ if __name__ == '__main__':
 
     USER = None
 
-    import Cookie
+    http_status = 'Status: 200 OK'
+    http_data = {}
+
     try:
-        USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
-    except (Cookie.CookieError, KeyError, IndexError):
-        print("Status: 401 Not Found")
+
+
+        try:
+            import Cookie
+            USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
+        except (Cookie.CookieError, KeyError, IndexError):
+            raise SessionAuthenitcationError('not authenticated')
+
+        if DEBUG:
+            USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
+
+        s=Session()
+
+        # Create instance of FieldStorage
+        form = cgi.FieldStorage()
+
+        # Get data from fields
+        query =  form.getvalue('query')
+        filter = None
+
+        if query == None:
+            uri = os.environ.get('REQUEST_URI').replace(BASE_URI + '/', '').split('/')
+            query = uri[0]
+            if len(uri) > 1:
+                filter = uri[1]
+
+        if query == 'hostgroups':
+            if filter == None:
+                filter = form.getvalue('hostgroup')
+
+        elif query == 'servicegroups':
+            if filter == None:
+                filter = form.getvalue('servicegroup')
+
+        elif query == 'services': # return service update information as pushed via websocket
+            pass
+
+        else:
+            raise SessionException('unknown query')
+
+        # actual query execution
+
+        nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
+        s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
+        result = s.sql2json(query = query, filter = filter)
+
+        # starting with http output
+        http_status = 'Status: 200 OK'
+        http_data = result
+
+    except SessionAuthenitcationError, e:
+        http_status = 'Status: 401 Not Found'
+        http_data['message'] = str(e);
+
+    except SessionException, e:
+        http_status = 'Status: 500 Internal Server Error'
+        http_data['message'] = str(e);
+
+    finally:
+        print(http_status)
         print("Content-type: application/json; charset=utf-8")
         print
-        print("{\n  \"message\" : \"User not authenticated\"\n}\n")
-        sys.exit(0)
+        print(json.dumps(http_data, indent=4))
 
-    # starting with http output
-    print("Content-type: application/json")
-    print
-
-    if DEBUG:
-        USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
-
-    s=Session()
-
-    # Create instance of FieldStorage
-    form = cgi.FieldStorage()
-
-    # Get data from fields
-    query =  form.getvalue('query')
-    filter = None
-
-    if query == None:
-        uri = os.environ.get('REQUEST_URI').replace(BASE_URI + '/', '').split('/')
-        query = uri[0]
-        if len(uri) > 1:
-            filter = uri[1]
-
-    if query == None:
-        print('query parameter missing') # debug
-        sys.exit()
-
-    elif query == 'hostgroups':
-        if filter == None:
-            filter = form.getvalue('hostgroup')
-
-    elif query == 'servicegroups':
-        if filter == None:
-            filter = form.getvalue('servicegroup')
-
-    elif query == 'services': # return service update information as pushed via websocket
-        filter=''
-
-    else:
-        print('illegal query parameter',query) # debug
-        #exit() # illegal query, comment for debugging
-        pass
-
-    # actual query execution
-
-    nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
-    s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-
-    print(s.sql2json(query = query, filter = filter)) # outputs json
