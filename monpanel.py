@@ -227,7 +227,7 @@ class Session:
         return hgdata
 
 
-    def sql2json(self, query = 'hostgroup', filter = 'saared'):
+    def sql2json(self, query, filter):
         if query == 'hostgroups':
             if filter == None:
                 return self._hostgroups2json()
@@ -532,7 +532,7 @@ if __name__ == '__main__':
             filter = form.getvalue('servicegroup')
 
     elif query == 'services': # return service update information as pushed via websocket
-        filter=''
+        pass
 
     else:
         print('illegal query parameter',query) # debug
