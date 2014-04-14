@@ -4,6 +4,8 @@
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
 # 12.04.2014 cougar tegi mitu parendust
 # 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef ning hex float voimalikkus. 2 mac piirang on veel sees !!!
+# 14.04.2014 services value val masiivist member valja! alati []
+
 
 DEBUG = True
 
@@ -18,7 +20,7 @@ s.nagios_hosts2sql(nagiosdata)
 #s.dump_table()
 s.sql2json() # paranda default query ja filter
 s.sql2json(query='servicegroups', filter ='')
-s.sql2json(query='hostgroup', filter ='saared')
+s.sql2json(query='hostgroups', filter ='saared')
 s.sql2json(query='servicegroup', filter ='service_pumplad4_ee')
 
 s.state2buffer() # read state to find updates, temporary polling!!
@@ -148,7 +150,7 @@ class Session:
             hgdata['hosts'].append(hdata)
         return json.dumps(hgdata, indent=4)
 
-    def _servicegroup2json(self, filter):
+    def _servicegroup2json(self, filter = 'service_pumplad4_ee'):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
         cur=self.conn.cursor()
         rows={}
@@ -214,8 +216,11 @@ class Session:
                 hdata['multiperf']=[]
                 for mp in range(len(mperf)): # multicfg processing #####################################################
                     multiperf={}
-                    multiperf['member']=mp # 0+1...
-                    multiperf['name']=mperf[mp]
+                    #multiperf['member']=mp+1 # 0+1... # jatame ara
+                    if mperf[mp] == '': # saab olla ainult yheliikmelise teenuse puhul nii
+                        multiperf['name']=hdata['svc_name']
+                    else:
+                        multiperf['name']=mperf[mp]
                     multiperf['cfg']=False
                     if (len(multicfg) > 0 and len(mperf) > 0): # there are members, some members are configurable too
                         if str(mp+1) in multicfg:
@@ -429,10 +434,11 @@ class Session:
                     valmems=[value] # single value
 
                 for mnum in range(len(valmems)): # value member loop
-                    valmember={}
-                    valmember['member']=mnum+1
-                    valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
-                    sdata['value'].append(valmember) # member ready
+                    # {}
+                    #valmember['member']=mnum+1
+                    #valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
+                    #sdata['value'].append(valmember) # member ready
+                    sdata['value'].append(self.stringvalue2scale(valmems[mnum],conv_coef))
                 hdata['services'].append(sdata) # service ready
             #print('hdata: ',hdata) # debug
             data.append(hdata) # host ready
