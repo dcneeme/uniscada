@@ -5,7 +5,7 @@
 # 12.04.2014 cougar tegi mitu parendust
 # 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef ning hex float voimalikkus. 2 mac piirang on veel sees !!!
 # 14.04.2014 services value val masiivist member valja! alati []
-
+# 16.04.2014 print("Access-Control-Allow-Origin: *") # mikk tahtis 
 
 DEBUG = True
 
@@ -43,7 +43,7 @@ import json
 query=''
 
 FROM='n.itvilla.com/get_user_data?user_name='
-USER='sdmarianne' # :kvv6313    #  'sdtoomas'
+USER='' # sdmarianne' # :kvv6313    #  'sdtoomas'
 
 
 class SessionException(Exception):
@@ -77,7 +77,7 @@ class Session:
 
         self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
 
-    def get_userdata_nagios(self,FROM,USER):
+    def get_userdata_nagios(self,FROM='hvv.itvilla.com/get_user_data?', USER='sdmarianne'):
         '''Gets data fro user USER from Nagios FROM '''
         # https://hvv.itvilla.com/get_user_data?user_name=USER
         req = 'https://'+FROM+USER
@@ -126,7 +126,7 @@ class Session:
         cur.execute(Cmd)
         for row in cur:
             print(row)
-        self.conn.commit() # kas on vaja kui transactioni pole?
+        self.conn.commit() 
 
     def _sqlcmd2json(self, Cmd):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -145,7 +145,7 @@ class Session:
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
         cur=self.conn.cursor()
         rows={}
-        Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # gruppide loetelu
+        Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # hostid grupis
         cur.execute(Cmd)
         hdata={}
         hgdata = {"hostgroup":filter, "hosts":[] }
@@ -154,6 +154,7 @@ class Session:
             hdata['servicegroup']=row[1]
             hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
             hgdata['hosts'].append(hdata)
+            hdata={}
         return hgdata
 
     def _servicegroup2json(self, filter = 'service_pumplad4_ee'):
@@ -317,26 +318,26 @@ class Session:
             for hid in groupdata.keys():
                 halias=groupdata.get(hid)
                 Cmd="insert into "+table+"(hid,halias,ugid) values('"+hid+"','"+halias+"','"+gid+"')"
-                #print(Cmd) # debug
+                #self.cmd=self.cmd+'\n'+Cmd # debug
                 self.conn.execute(Cmd)
 
         for gid in data[1].keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
             groupdata=data[1].get(gid) # alias, members{}
-            galias=groupdata.get('alias') # seda ei ole esialgu!
-            members=groupdata.get('members')
+            galias=groupdata.get('alias')
+            members=groupdata.get('members') # hosts
             for member in members.keys():
                 hid=member
                 Cmd="select servicetable from controller where mac='"+hid+"'"
                 cur.execute(Cmd)
-                for row in cur:
+                for row in cur: # one answer if any
                     servicetable=str(row[0])
                     Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd)
+                    #print(Cmd) # debug
+                    self.conn.execute(Cmd)
 
         Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
         cur.execute(Cmd)
-        for row in cur:
+        for row in cur: # getting all used servicetables into memory
             servicetable=str(row[0])
             self.sqlread('/srv/scada/sqlite/'+servicetable+'.sql')
 
@@ -344,12 +345,13 @@ class Session:
         self.conn.commit()
 
 
-    def state2buffer(self, hostgroup = 'saared'): # FIXME filter hostgroup alusel vajalik!
+    def state2buffer(self, hostgroup = 'saared'): # FIXME filter hostgroup alusel vajalik et state tabelist saadava tulemuse mahtu piirata! 
         ''' Returns service refresh data as json in case of change or update from host based on timestamp.
             With default ts_last all services are returned, with ts_last > 0 only those updated since then.
+            Not to be used after websocket is activated.
         '''
         cur2=self.conn2.cursor()
-        self.ts = int(round(time.time()))
+        self.ts = round(time.time(),1)
         if self.ts_last == 0:
             ts_last = self.ts - 300 # first execution, limit the number of selected records (no id filter here until FIXME!)
 
@@ -500,6 +502,10 @@ if __name__ == '__main__':
     http_status = 'Status: 200 OK'
     http_data = {}
 
+    #print(http_status) # debug jaoks varasemaks, et naeks palju aega votab taitmine
+    #print("Content-type: application/json; charset=utf-8") # debug jaoks varasemaks
+    #print
+    
     try:
 
 
@@ -545,7 +551,7 @@ if __name__ == '__main__':
 
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        result = s.sql2json(query = query, filter = filter)
+        result = s.sql2json(query = query, filter = filter) #jamab! kordab yhte hosti, ws_hosts sisu oige!
 
         # starting with http output
         http_status = 'Status: 200 OK'
@@ -560,8 +566,13 @@ if __name__ == '__main__':
         http_data['message'] = str(e);
 
     finally:
-        print(http_status)
+        print(http_status) # debug jaoks varasemaks viia
         print("Content-type: application/json; charset=utf-8")
+        print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
         print
         print(json.dumps(http_data, indent=4))
+        #print 'temporary debug data follows' # debug
+        #print nagiosdata # debug
+        #s.dump_table() # debug 
+        #print result # debug
 
