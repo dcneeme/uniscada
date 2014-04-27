@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf_8 -*-
 #
 # 08.04.2014 kasutajale lubatud hostgruppide ja hostide mobiilsele kliendile raporteerimine. nagiose query, json.load test
@@ -36,8 +36,6 @@ import time
 import traceback
 import os
 import sys
-reload(sys)
-sys.setdefaultencoding('utf-8')  # proovime kas aitab? reload() vajalik!! AITAS! aga voib midagi untsu keerata py2 jaoks! py3 ongi utf8 default.
 import requests  #  subprocess
 import json
 query=''
@@ -61,11 +59,7 @@ class Session:
 
     def __init__(self):
         self.conn = sqlite3.connect(':memory:')
-        #self.conn.text_factory = str # tapitahtede voimaldamiseks/ voi vastupidi, utf8 keelamiseks??? utf on u, mitte s
-        self.conn.text_factory = lambda x: unicode(x, "utf-8", "ignore") # proovime nii, ignoreerib kui pole utf8?
         self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state ja newstate tabelid
-        #self.conn2.text_factory = str # tapitahtede voimaldamiseks
-        self.conn2.text_factory = lambda x: unicode(x, "utf-8", "ignore")
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
 
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC); \
@@ -83,7 +77,7 @@ class Session:
         req = 'https://'+FROM+USER
 
         try:
-            fromnagios=requests.get(req).content
+            fromnagios=requests.get(req).content.decode(encoding='UTF-8')
             #print(fromnagios) # debug
         except:
             raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
@@ -101,7 +95,7 @@ class Session:
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
         table = str(filename.split('.')[0].split('/')[-1:])
         try:
-            sql = open(filename).read()
+            sql = open(filename, encoding="utf-8").read()
         except:
             raise SessionException('FAILURE in sqlread ' + filename + ': '+str(sys.exc_info()[1])) # aochannels ei pruugi olemas olla alati!
 
@@ -152,7 +146,7 @@ class Session:
         for row in cur:
             hdata['id']=row[0]
             hdata['servicegroup']=row[1]
-            hdata['alias']=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
+            hdata['alias']=row[2]
             hgdata['hosts'].append(hdata)
             hdata={}
         return hgdata
@@ -173,9 +167,9 @@ class Session:
             hdata['svc_name']=row[2]
             unit=row[3]
             desc=[]
-            desc.append(row[4].encode('utf-8').strip()) # to avoid errors of utf8 codec
-            desc.append(row[5].encode('utf-8').strip()) # to avoid errors of utf8 codec
-            desc.append(row[6].encode('utf-8').strip()) # to avoid errors of utf8 codec
+            desc.append(row[4])
+            desc.append(row[5])
+            desc.append(row[6])
             multiperf=row[7]
             multivalue=row[8] # to be shown in the end of desc after colon
             try: # igas teenusetabelis ei ole esialgu seda tulpa
@@ -373,7 +367,7 @@ class Session:
         for row in cur2:
             hid=row[0]
             register=row[1]
-            value=row[2].encode('utf-8').strip() # to avoid errors of utf8 codec
+            value=row[2]
             timestamp=row[3]
             #print('hid,register,value',hid,register,value) # debug
 
@@ -517,7 +511,13 @@ if __name__ == '__main__':
 
 
         try:
+            # Python 2
             import Cookie
+        except (NameError, ImportError):
+            # Python 3
+            import http.cookies as Cookie
+
+        try:
             USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
         except (Cookie.CookieError, KeyError, IndexError):
             raise SessionAuthenitcationError('not authenticated')
@@ -568,11 +568,11 @@ if __name__ == '__main__':
         http_status = 'Status: 200 OK'
         http_data = result
 
-    except SessionAuthenitcationError, e:
+    except SessionAuthenitcationError as e:
         http_status = 'Status: 401 Not Found'
         http_data['message'] = str(e);
 
-    except SessionException, e:
+    except SessionException as e:
         http_status = 'Status: 500 Internal Server Error'
         http_data['message'] = str(e);
 
@@ -580,7 +580,7 @@ if __name__ == '__main__':
         print(http_status) # debug jaoks varasemaks viia
         print("Content-type: application/json; charset=utf-8")
         print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
-        print
+        print()
         print(json.dumps(http_data, indent=4))
         #print 'temporary debug data follows' # debug
         #print nagiosdata # debug
