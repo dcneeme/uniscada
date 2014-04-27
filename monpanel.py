@@ -77,19 +77,25 @@ class Session:
 
         self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
 
-    def get_userdata_nagios(self,FROM='hvv.itvilla.com/get_user_data?', USER='sdmarianne'):
-        '''Gets data fro user USER from Nagios FROM '''
+    def get_userdata_nagios(self,FROM='n.itvilla.com/get_user_data?user_name=', USER='sdmarianne'):
+        '''Gets data for user USER from Nagios cgi '''
         # https://hvv.itvilla.com/get_user_data?user_name=USER
         req = 'https://'+FROM+USER
 
         try:
-            response = json.loads(requests.get(req).content)
+            fromnagios=requests.get(req).content
+            print(fromnagios) # debug
+        except:
+            raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
+
+        try:
+            response = json.loads(fromnagios)
             USERCHK=response.get('user_data').get('user_name')
             if USERCHK != USER:
                 raise SessionException('invalid response: ' + str(response))
             return response.get('user_data').get('user_groups'), response.get('user_data').get('hostgroups') # return tuple of [hostgroups,usergroups]
         except:
-            raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
+            raise SessionException('problem with json: ' + str(sys.exc_info()[1]))
 
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
@@ -345,23 +351,27 @@ class Session:
         self.conn.commit()
 
 
-    def state2buffer(self, hostgroup = 'saared'): # FIXME filter hostgroup alusel vajalik et state tabelist saadava tulemuse mahtu piirata! 
-        ''' Returns service refresh data as json in case of change or update from host based on timestamp.
+    def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
+        ''' Returns service refresh data as json in case of change or update from one host.
             With default ts_last all services are returned, with ts_last > 0 only those updated since then.
-            Not to be used after websocket is activated.
+            Not needed after websocket is activated.
         '''
+        timefrom=0
         cur2=self.conn2.cursor()
         self.ts = round(time.time(),1)
-        if self.ts_last == 0:
-            ts_last = self.ts - 300 # first execution, limit the number of selected records (no id filter here until FIXME!)
-
+        if age == 0:
+            timefrom = 0
+        elif age >0:
+            timefrom = self.ts - age
+        else: # None korral arvestab eelmise lugemisega
+            timefrom= self.ts
         #  servicebuffer(hid,svc_name,sta_reg,status INT,val_reg,value,timestamp NUMERIC) via conn
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction for servicebuffer
-        #Cmd="select mac,register,value from state where timestamp+0>"+str(self.ts_last) # use last ts here
-        Cmd="select mac,register,value,timestamp from state where timestamp+0>"+str(self.ts_last)+" and (mac='00204AA95C56' or mac='00204AB80D57')" # debug, limit the hosts
-        #print(Cmd) # debug
-        cur2.execute(Cmd)
+
+        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab koik
+        #Cmd2="select mac,register,value,timestamp from state left join where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab ainult kirjeldatud teenused, left join??
+        cur2.execute(Cmd2)
         self.conn2.commit()
         for row in cur2:
             hid=row[0]
@@ -542,13 +552,17 @@ if __name__ == '__main__':
                 filter = form.getvalue('servicegroup')
 
         elif query == 'services': # return service update information as pushed via websocket
-            pass
+            if filter == None:
+                filter = form.getvalue('host')
+            s.state2buffer(host, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
+               # kui age ei anta, siis alates viimasest kysimisest uuenenud
+               # kui age (s) olemas, siis selle vastavalt
+            http_data=s.buffer2json()
 
         else:
             raise SessionException('unknown query')
 
         # actual query execution
-
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
         result = s.sql2json(query = query, filter = filter) #jamab! kordab yhte hosti, ws_hosts sisu oige!
@@ -575,4 +589,3 @@ if __name__ == '__main__':
         #print nagiosdata # debug
         #s.dump_table() # debug 
         #print result # debug
-
