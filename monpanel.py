@@ -103,22 +103,15 @@ class Session:
         try:
             sql = open(filename).read()
         except:
-            msg='FAILURE in sqlread: '+str(sys.exc_info()[1]) # aochannels ei pruugi olemas olla alati!
-            print(msg)
-            return 1
+            raise SessionException('FAILURE in sqlread ' + filename + ': '+str(sys.exc_info()[1])) # aochannels ei pruugi olemas olla alati!
 
         Cmd='drop table if exists '+table
         try:
             self.conn.execute(Cmd) # drop the table if it exists
             self.conn.executescript(sql) # read table into database
             self.conn.commit()
-            msg='sqlread: successfully recreated table '+table
-            #print(msg)
-            return 0
         except:
-            msg='sqlread: '+str(sys.exc_info()[1])
-            print(msg)
-            return 1
+            raise SessionException('sqlread: '+str(sys.exc_info()[1]))
 
 
 
