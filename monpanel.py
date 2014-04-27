@@ -50,7 +50,7 @@ class SessionException(Exception):
     def __str__(self):
         return 'Session Error: %s' % self.string
 
-class SessionAuthenitcationError(SessionException):
+class SessionAuthenticationError(SessionException):
     def __init__(self, string=""):
         SessionException.__init__(self, string)
 
@@ -520,7 +520,7 @@ if __name__ == '__main__':
         try:
             USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
         except (Cookie.CookieError, KeyError, IndexError):
-            raise SessionAuthenitcationError('not authenticated')
+            raise SessionAuthenticationError('not authenticated')
 
         if DEBUG:
             USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
@@ -568,7 +568,7 @@ if __name__ == '__main__':
         http_status = 'Status: 200 OK'
         http_data = result
 
-    except SessionAuthenitcationError as e:
+    except SessionAuthenticationError as e:
         http_status = 'Status: 401 Not Found'
         http_data['message'] = str(e);
 
