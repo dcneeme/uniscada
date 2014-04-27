@@ -70,6 +70,7 @@ class Session:
         self.conn.commit() # created ws_hosts
 
         self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
+        self.sqlread('/srv/scada/sqlite/controller.sql') # create an empty state buffer into memory
 
     def get_userdata_nagios(self,FROM='n.itvilla.com/get_user_data?user_name=', USER='sdmarianne'):
         '''Gets data for user USER from Nagios cgi '''
@@ -342,6 +343,29 @@ class Session:
         self.conn.commit()
 
 
+    def state2state(self, host, age = 0): # updating state table in meory with the received udp data
+        ''' copies all services for one host into the state copy in memory '''
+        timefrom=0
+        cur2=self.conn2.cursor()
+        self.ts = round(time.time(),1)
+        if age == 0:
+            timefrom = 0
+        elif age >0:
+            timefrom = self.ts - age
+        else: # None korral arvestab eelmise lugemisega
+            timefrom= self.ts
+        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" 
+        cur2.execute(Cmd2)
+        self.conn2.commit()
+        
+        Cmd="BEGIN IMMEDIATE TRANSACTION"
+        self.conn.execute(Cmd) # transaction begin
+        for row in cur2:
+            Cmd="insert into state(mac,register,value,timestamp) values(row[0],row[1],row[2],row[3])"
+            self.conn.execute(Cmd) # 
+        self.conn.commit() # transaction end
+        
+    
     def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
         ''' Returns service refresh data as json in case of change or update from one host.
             With default ts_last all services are returned, with ts_last > 0 only those updated since then.
@@ -360,10 +384,9 @@ class Session:
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction for servicebuffer
 
-        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab koik
-        #Cmd2="select mac,register,value,timestamp from state left join where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab ainult kirjeldatud teenused, left join??
-        cur2.execute(Cmd2)
-        self.conn2.commit()
+        Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
+        cur.execute(Cmd2)
+        self.conn.commit()
         for row in cur2:
             hid=row[0]
             register=row[1]
