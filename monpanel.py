@@ -241,13 +241,13 @@ class Session:
 
     def sql2json(self, query, filter):
         if query == 'hostgroups':
-            if filter == None:
+            if filter == None or filter == '':
                 return self._hostgroups2json()
             else:
                 return self._hostgroup2json(filter)
 
         if query == 'servicegroups':
-            if filter == None:
+            if filter == None or filter == '':
                 return self._servicegroups2json()
             else:
                 return self._servicegroup2json(filter)
