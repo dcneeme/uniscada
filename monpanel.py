@@ -234,6 +234,10 @@ class Session:
 
         return hgdata
 
+    def _services2json(self, filter):
+        self.state2state(host=filter, age=300)
+        self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
+        return self.buffer2json()
 
     def sql2json(self, query, filter):
         if query == 'hostgroups':
@@ -249,8 +253,10 @@ class Session:
                 return self._servicegroup2json(filter)
 
         if query == 'services':
-            self.state2buffer() # read state to cretate services
-            return self.buffer2json() # output services as json
+            if filter == None or filter == '':
+                raise SessionException('missing parameter')
+            else:
+                return self._services2json(filter)
 
         raise SessionException('illegal query: ' + query)
 
@@ -590,12 +596,7 @@ if __name__ == '__main__':
         # actual query execution
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        if query == 'services':
-            s.state2state(host=filter, age=300)
-            s.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-            result = s.buffer2json()
-        else:
-            result = s.sql2json(query = query, filter = filter) # host or service information
+        result = s.sql2json(query = query, filter = filter) # host or service information
         
         # starting with http output
         http_status = 'Status: 200 OK'
