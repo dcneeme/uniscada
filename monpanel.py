@@ -337,8 +337,11 @@ class Session:
 
         Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
         cur.execute(Cmd)
+        servicetables = []
         for row in cur: # getting all used servicetables into memory
             servicetable=str(row[0])
+            servicetables.append(str(row[0]))
+        for servicetable in servicetables:
             self.sqlread('/srv/scada/sqlite/'+servicetable+'.sql')
 
         # controller and used servicetables must remain accessible in memory
