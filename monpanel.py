@@ -70,6 +70,8 @@ class Session:
         self.conn.commit() # created ws_hosts
 
         self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
+        self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
+        self.sqlread('/srv/scada/sqlite/newstate.sql') # create an empty newstate buffer into memory for sending to hosts
 
     def get_userdata_nagios(self,FROM='n.itvilla.com/get_user_data?user_name=', USER='sdmarianne'):
         '''Gets data for user USER from Nagios cgi '''
@@ -342,13 +344,42 @@ class Session:
         self.conn.commit()
 
 
+    def state2state(self, host, age = 0): # updating state table in meory with the received udp data
+        ''' copies all services for one host into the state copy in memory '''
+        timefrom=0
+        cur2=self.conn2.cursor()
+        self.ts = round(time.time(),1)
+        if age == 0:
+            timefrom = 0
+        elif age >0:
+            timefrom = self.ts - age
+        else: # None korral arvestab eelmise lugemisega
+            timefrom= self.ts
+        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" 
+        cur2.execute(Cmd2)
+        self.conn2.commit()
+        
+        Cmd="BEGIN IMMEDIATE TRANSACTION"
+        self.conn.execute(Cmd) # transaction begin
+        for row in cur2:
+            try:
+                Cmd="insert into state(mac,register,value,timestamp) values('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"')"
+                print(Cmd) # debug
+                self.conn.execute(Cmd) #
+            except:
+                Cmd="UPDATE STATE SET value='"+str(row[2])+"',timestamp='"+str(row[3])+"' WHERE mac='"+row[0]+"' AND register='"+row[1]+"'"
+                print(Cmd) # debug
+                self.conn.execute(Cmd) #
+        self.conn.commit() # transaction end
+        
+    
     def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
         ''' Returns service refresh data as json in case of change or update from one host.
             With default ts_last all services are returned, with ts_last > 0 only those updated since then.
             Not needed after websocket is activated.
         '''
         timefrom=0
-        cur2=self.conn2.cursor()
+        cur=self.conn.cursor()
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -360,11 +391,10 @@ class Session:
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction for servicebuffer
 
-        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab koik
-        #Cmd2="select mac,register,value,timestamp from state left join where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saadab ainult kirjeldatud teenused, left join??
-        cur2.execute(Cmd2)
-        self.conn2.commit()
-        for row in cur2:
+        Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
+        cur.execute(Cmd)
+        #self.conn.commit()
+        for row in cur:
             hid=row[0]
             register=row[1]
             value=row[2]
@@ -386,6 +416,7 @@ class Session:
             if key != '': # service defined in serviceregister
                 try:
                     Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
+                    print(Cmd) # debug
                     self.conn.execute(Cmd)
                 except:
                     #traceback.print_exc() # debug insert
@@ -458,13 +489,14 @@ class Session:
         return data
 
 
-    def stringvalue2scale(self, input = '', conv_coef = None):
+    def stringvalue2scale(self, input = '', coeff = None):
         ''' Accepts string as inputs, divides by conv_coef, returns string as output. 
             Rounding in use based on conv_coef.
             Understands hex float strings and converts them to human readable form.
         '''
-        if conv_coef > 1: # that covers not None too
+        if coeff != None and coeff != '':
             try:
+                conv_coef = eval(coeff) 
                 if len(input)>10 and not ' ' in input and not '.' in input: # try hex2float conversion for long strings
                     input=self.floatfromfex(input) # kumulatiivne veekulu siemens magflow 16 char, key TOV
                 output=str(round((eval(input)/conv_coef),2)) # 2kohta peale koma kui jagamistegur > 1
@@ -551,19 +583,20 @@ if __name__ == '__main__':
         elif query == 'services': # return service update information as pushed via websocket
             if filter == None:
                 filter = form.getvalue('host')
-            s.state2buffer(host, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-               # kui age ei anta, siis alates viimasest kysimisest uuenenud
-               # kui age (s) olemas, siis selle vastavalt
-            http_data=s.buffer2json()
-
+            
         else:
             raise SessionException('unknown query')
 
         # actual query execution
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        result = s.sql2json(query = query, filter = filter) #jamab! kordab yhte hosti, ws_hosts sisu oige!
-
+        if query == 'services':
+            s.state2state(host=filter, age=300)
+            s.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
+            result = s.buffer2json()
+        else:
+            result = s.sql2json(query = query, filter = filter) # host or service information
+        
         # starting with http output
         http_status = 'Status: 200 OK'
         http_data = result
@@ -582,7 +615,8 @@ if __name__ == '__main__':
         print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
         print()
         print(json.dumps(http_data, indent=4))
-        #print 'temporary debug data follows' # debug
+        print 'temporary debug data follows' # debug
+        print(query,filter)
         #print nagiosdata # debug
         #s.dump_table() # debug 
         #print result # debug
