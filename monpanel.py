@@ -393,7 +393,7 @@ class Session:
 
         Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
         cur.execute(Cmd)
-        self.conn.commit()
+        #self.conn.commit()
         for row in cur:
             hid=row[0]
             register=row[1]
@@ -416,6 +416,7 @@ class Session:
             if key != '': # service defined in serviceregister
                 try:
                     Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
+                    print(Cmd) # debug
                     self.conn.execute(Cmd)
                 except:
                     #traceback.print_exc() # debug insert
@@ -488,13 +489,14 @@ class Session:
         return data
 
 
-    def stringvalue2scale(self, input = '', conv_coef = None):
+    def stringvalue2scale(self, input = '', coeff = None):
         ''' Accepts string as inputs, divides by conv_coef, returns string as output. 
             Rounding in use based on conv_coef.
             Understands hex float strings and converts them to human readable form.
         '''
-        if conv_coef > 1: # that covers not None too
+        if coeff != None and coeff != '':
             try:
+                conv_coef = eval(coeff) 
                 if len(input)>10 and not ' ' in input and not '.' in input: # try hex2float conversion for long strings
                     input=self.floatfromfex(input) # kumulatiivne veekulu siemens magflow 16 char, key TOV
                 output=str(round((eval(input)/conv_coef),2)) # 2kohta peale koma kui jagamistegur > 1
