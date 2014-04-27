@@ -84,7 +84,7 @@ class Session:
 
         try:
             fromnagios=requests.get(req).content
-            print(fromnagios) # debug
+            #print(fromnagios) # debug
         except:
             raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
 
