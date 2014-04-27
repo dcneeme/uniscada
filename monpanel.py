@@ -70,7 +70,8 @@ class Session:
         self.conn.commit() # created ws_hosts
 
         self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
-        self.sqlread('/srv/scada/sqlite/controller.sql') # create an empty state buffer into memory
+        self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
+        self.sqlread('/srv/scada/sqlite/newstate.sql') # create an empty newstate buffer into memory for sending to hosts
 
     def get_userdata_nagios(self,FROM='n.itvilla.com/get_user_data?user_name=', USER='sdmarianne'):
         '''Gets data for user USER from Nagios cgi '''
@@ -361,8 +362,14 @@ class Session:
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction begin
         for row in cur2:
-            Cmd="insert into state(mac,register,value,timestamp) values(row[0],row[1],row[2],row[3])"
-            self.conn.execute(Cmd) # 
+            try:
+                Cmd="insert into state(mac,register,value,timestamp) values('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"')"
+                print(Cmd) # debug
+                self.conn.execute(Cmd) #
+            except:
+                Cmd="UPDATE STATE SET value='"+str(row[2])+"',timestamp='"+str(row[3])+"' WHERE mac='"+row[0]+"' AND register='"+row[1]+"'"
+                print(Cmd) # debug
+                self.conn.execute(Cmd) #
         self.conn.commit() # transaction end
         
     
@@ -372,7 +379,7 @@ class Session:
             Not needed after websocket is activated.
         '''
         timefrom=0
-        cur2=self.conn2.cursor()
+        cur=self.conn.cursor()
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -385,9 +392,9 @@ class Session:
         self.conn.execute(Cmd) # transaction for servicebuffer
 
         Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
-        cur.execute(Cmd2)
+        cur.execute(Cmd)
         self.conn.commit()
-        for row in cur2:
+        for row in cur:
             hid=row[0]
             register=row[1]
             value=row[2]
