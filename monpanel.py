@@ -108,6 +108,7 @@ class Session:
         Cmd='drop table if exists '+table
         try:
             self.conn.execute(Cmd) # drop the table if it exists
+            self.conn.commit()
             self.conn.executescript(sql) # read table into database
             self.conn.commit()
         except:
