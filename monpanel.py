@@ -50,7 +50,7 @@ class SessionException(Exception):
     def __str__(self):
         return 'Session Error: %s' % self.string
 
-class SessionAuthenitcationError(SessionException):
+class SessionAuthenticationError(SessionException):
     def __init__(self, string=""):
         SessionException.__init__(self, string)
 
@@ -552,7 +552,7 @@ if __name__ == '__main__':
         try:
             USER = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])[COOKIEAUTH_DOMAIN].value.split(':')[0]
         except (Cookie.CookieError, KeyError, IndexError):
-            raise SessionAuthenitcationError('not authenticated')
+            raise SessionAuthenticationError('not authenticated')
 
         if DEBUG:
             USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
@@ -583,24 +583,25 @@ if __name__ == '__main__':
         elif query == 'services': # return service update information as pushed via websocket
             if filter == None:
                 filter = form.getvalue('host')
-            s.state2buffer(host, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-               # kui age ei anta, siis alates viimasest kysimisest uuenenud
-               # kui age (s) olemas, siis selle vastavalt
-            http_data=s.buffer2json()
-
+            
         else:
             raise SessionException('unknown query')
 
         # actual query execution
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        result = s.sql2json(query = query, filter = filter) #jamab! kordab yhte hosti, ws_hosts sisu oige!
-
+        if query == 'services':
+            s.state2state(host=filter, age=300)
+            s.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
+            result = s.buffer2json()
+        else:
+            result = s.sql2json(query = query, filter = filter) # host or service information
+        
         # starting with http output
         http_status = 'Status: 200 OK'
         http_data = result
 
-    except SessionAuthenitcationError as e:
+    except SessionAuthenticationError as e:
         http_status = 'Status: 401 Not Found'
         http_data['message'] = str(e);
 
@@ -614,7 +615,8 @@ if __name__ == '__main__':
         print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
         print()
         print(json.dumps(http_data, indent=4))
-        #print 'temporary debug data follows' # debug
+        print 'temporary debug data follows' # debug
+        print(query,filter)
         #print nagiosdata # debug
         #s.dump_table() # debug 
         #print result # debug
