@@ -5,7 +5,7 @@
 # 12.04.2014 cougar tegi mitu parendust
 # 13.04.2014 vaartuste ringiarvutamine vastavalt service_* conv_coef ning hex float voimalikkus. 2 mac piirang on veel sees !!!
 # 14.04.2014 services value val masiivist member valja! alati []
-# 16.04.2014 print("Access-Control-Allow-Origin: *") # mikk tahtis 
+# 16.04.2014 print("Access-Control-Allow-Origin: *") # mikk tahtis
 
 DEBUG = True
 
@@ -122,7 +122,7 @@ class Session:
         cur.execute(Cmd)
         for row in cur:
             print(row)
-        self.conn.commit() 
+        self.conn.commit()
 
     def _sqlcmd2json(self, Cmd):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -234,6 +234,10 @@ class Session:
 
         return hgdata
 
+    def _services2json(self, filter):
+        self.state2state(host=filter, age=300)
+        self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
+        return self.buffer2json()
 
     def sql2json(self, query, filter):
         if query == 'hostgroups':
@@ -249,8 +253,10 @@ class Session:
                 return self._servicegroup2json(filter)
 
         if query == 'services':
-            self.state2buffer() # read state to cretate services
-            return self.buffer2json() # output services as json
+            if filter == None or filter == '':
+                raise SessionException('missing parameter')
+            else:
+                return self._services2json(filter)
 
         raise SessionException('illegal query: ' + query)
 
@@ -355,10 +361,10 @@ class Session:
             timefrom = self.ts - age
         else: # None korral arvestab eelmise lugemisega
             timefrom= self.ts
-        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" 
+        Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'"
         cur2.execute(Cmd2)
         self.conn2.commit()
-        
+
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd) # transaction begin
         for row in cur2:
@@ -371,8 +377,8 @@ class Session:
                 print(Cmd) # debug
                 self.conn.execute(Cmd) #
         self.conn.commit() # transaction end
-        
-    
+
+
     def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
         ''' Returns service refresh data as json in case of change or update from one host.
             With default ts_last all services are returned, with ts_last > 0 only those updated since then.
@@ -490,13 +496,13 @@ class Session:
 
 
     def stringvalue2scale(self, input = '', coeff = None):
-        ''' Accepts string as inputs, divides by conv_coef, returns string as output. 
+        ''' Accepts string as inputs, divides by conv_coef, returns string as output.
             Rounding in use based on conv_coef.
             Understands hex float strings and converts them to human readable form.
         '''
         if coeff != None and coeff != '':
             try:
-                conv_coef = eval(coeff) 
+                conv_coef = eval(coeff)
                 if len(input)>10 and not ' ' in input and not '.' in input: # try hex2float conversion for long strings
                     input=self.floatfromfex(input) # kumulatiivne veekulu siemens magflow 16 char, key TOV
                 output=str(round((eval(input)/conv_coef),2)) # 2kohta peale koma kui jagamistegur > 1
@@ -514,7 +520,7 @@ class Session:
         except:
             return input # no conversion possible
 
-        sign = int(input[0:2],16) & 128 
+        sign = int(input[0:2],16) & 128
         exponent = (int(input[0:3],16) & 2047)  - 1023
         if sign == 128:
             return str(float.fromhex('-0x1.'+input[3:16]+'p'+str(exponent))) # negatiivne
@@ -538,7 +544,7 @@ if __name__ == '__main__':
     #print(http_status) # debug jaoks varasemaks, et naeks palju aega votab taitmine
     #print("Content-type: application/json; charset=utf-8") # debug jaoks varasemaks
     #print
-    
+
     try:
 
 
@@ -583,20 +589,15 @@ if __name__ == '__main__':
         elif query == 'services': # return service update information as pushed via websocket
             if filter == None:
                 filter = form.getvalue('host')
-            
+
         else:
             raise SessionException('unknown query')
 
         # actual query execution
         nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        if query == 'services':
-            s.state2state(host=filter, age=300)
-            s.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-            result = s.buffer2json()
-        else:
-            result = s.sql2json(query = query, filter = filter) # host or service information
-        
+        result = s.sql2json(query = query, filter = filter) # host or service information
+
         # starting with http output
         http_status = 'Status: 200 OK'
         http_data = result
@@ -618,5 +619,5 @@ if __name__ == '__main__':
         print 'temporary debug data follows' # debug
         print(query,filter)
         #print nagiosdata # debug
-        #s.dump_table() # debug 
+        #s.dump_table() # debug
         #print result # debug
