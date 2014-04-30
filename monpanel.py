@@ -492,7 +492,7 @@ class Session:
         self.conn.execute(Cmd)
         self.conn.commit()
         #print data # debug
-        return data
+        return data[0]
 
 
     def stringvalue2scale(self, input = '', coeff = None):
