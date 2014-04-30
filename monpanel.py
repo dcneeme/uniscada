@@ -370,11 +370,11 @@ class Session:
         for row in cur2:
             try:
                 Cmd="insert into state(mac,register,value,timestamp) values('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"')"
-                print(Cmd) # debug
+                #print(Cmd) # debug
                 self.conn.execute(Cmd) #
             except:
                 Cmd="UPDATE STATE SET value='"+str(row[2])+"',timestamp='"+str(row[3])+"' WHERE mac='"+row[0]+"' AND register='"+row[1]+"'"
-                print(Cmd) # debug
+                #print(Cmd) # debug
                 self.conn.execute(Cmd) #
         self.conn.commit() # transaction end
 
@@ -422,7 +422,7 @@ class Session:
             if key != '': # service defined in serviceregister
                 try:
                     Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
-                    print(Cmd) # debug
+                    #print(Cmd) # debug
                     self.conn.execute(Cmd)
                 except:
                     #traceback.print_exc() # debug insert
@@ -616,8 +616,8 @@ if __name__ == '__main__':
         print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
         print()
         print(json.dumps(http_data, indent=4))
-        print 'temporary debug data follows' # debug
-        print(query,filter)
+        #print 'temporary debug data follows' # debug
+        #print(query,filter)
         #print nagiosdata # debug
         #s.dump_table() # debug
         #print result # debug
