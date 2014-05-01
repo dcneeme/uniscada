@@ -173,7 +173,7 @@ class Session:
 
     def __init__(self):
         self.conn = sqlite3.connect(':memory:')
-        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state ja newstate tabelid
+        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state tabel
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
 
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC); \
@@ -185,7 +185,6 @@ class Session:
 
         ControllerData() # copy of hosts configuration data into memory
         self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
-        self.sqlread('/srv/scada/sqlite/newstate.sql') # create an empty newstate buffer into memory for sending to hosts
 
     def get_userdata_nagios(self, USER='sdmarianne'):
         userdata = NagiosUser(USER).getuserdata()
