@@ -403,7 +403,6 @@ class Session:
 
     def init_userdata(self, USER):
         userdata = NagiosUser(USER).getuserdata()
-        data = [userdata.get('user_groups'), userdata.get('hostgroups')]
         table = 'ws_hosts'
 
         ''' data from nagios put into tuple data
@@ -416,8 +415,9 @@ class Session:
         Cmd="BEGIN IMMEDIATE TRANSACTION"
         self.conn.execute(Cmd)
         # ws_hosts(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup)
-        for gid in data[0].keys(): # access info usr_group alusel
-            groupdata=data[0].get(gid) #
+        usergroups = userdata.get('user_groups', {})
+        for gid in usergroups.keys(): # access info usr_group alusel
+            groupdata=usergroups[gid] #
             #galias=groupdata.get('alias') # seda ei ole esialgu user_group jaoks
             for hid in groupdata.keys():
                 halias=groupdata.get(hid)
@@ -425,8 +425,9 @@ class Session:
                 #self.cmd=self.cmd+'\n'+Cmd # debug
                 self.conn.execute(Cmd)
 
-        for gid in data[1].keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
-            groupdata=data[1].get(gid) # alias, members{}
+        hostgroups = userdata.get('hostgroups', {})
+        for gid in hostgroups.keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
+            groupdata=hostgroups.get(gid) # alias, members{}
             galias=groupdata.get('alias')
             members=groupdata.get('members') # hosts
             for hid in members.keys():
