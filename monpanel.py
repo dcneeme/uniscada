@@ -14,8 +14,8 @@ DEBUG = True
 from monpanel import *
 s=Session() # instance tekitamine, teeb ka abitabeleid
 
-#print FROM,USER
-nagiosdata=s.get_userdata_nagios(FROM,USER)
+#print USER
+nagiosdata=s.get_userdata_nagios(USER)
 s.nagios_hosts2sql(nagiosdata)
 #s.dump_table()
 s.sql2json() # paranda default query ja filter
@@ -40,7 +40,6 @@ import requests  #  subprocess
 import json
 query=''
 
-FROM='n.itvilla.com/get_user_data?user_name='
 USER='' # sdmarianne' # :kvv6313    #  'sdtoomas'
 
 
@@ -53,6 +52,62 @@ class SessionException(Exception):
 class SessionAuthenticationError(SessionException):
     def __init__(self, string=""):
         SessionException.__init__(self, string)
+
+class NagiosUser:
+    ''' Nagios data cache implementation
+        TODO:
+            - expire old entries
+    '''
+    baseurl = 'https://n.itvilla.com/get_user_data?user_name='
+    nagiosdatacache = {}
+
+    def __init__(self, user):
+        ''' Load user data to the cache if missing
+
+        :param user: user name
+
+        '''
+        if user == None:
+            raise Exception('missing user')
+        self.user = user
+        if user in self.__class__.nagiosdatacache:
+            return
+        self._loaduserdata(user)
+
+    def _loaduserdata(self, user):
+        ''' Load user data from Nagios to the cache
+
+        :param user: user name
+
+        '''
+        try:
+            import requests
+            nagiosdata = requests.get(self.__class__.baseurl + user).content.decode(encoding='UTF-8')
+        except:
+            raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
+        try:
+            jsondata = json.loads(nagiosdata)
+        except:
+            raise SessionException('problem with json: ' + str(sys.exc_info()[1]))
+        try:
+            if user != jsondata.get('user_data').get('user_name'):
+                raise SessionException('invalid user name in nagios response')
+        except:
+            raise SessionException('invalid nagios response')
+        self.__class__.nagiosdatacache[user] = jsondata.get('user_data')
+
+    def getuserdata(self):
+        ''' Return user data from cache
+
+        :return: user data structure
+
+        '''
+        if self.user in self.__class__.nagiosdatacache:
+            return self.__class__.nagiosdatacache[self.user]
+        raise SessionException('user data missing')
+
+    def __str__(self):
+        return str(self.__class__.nagiosdatacache)
 
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
@@ -73,26 +128,9 @@ class Session:
         self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
         self.sqlread('/srv/scada/sqlite/newstate.sql') # create an empty newstate buffer into memory for sending to hosts
 
-    def get_userdata_nagios(self,FROM='n.itvilla.com/get_user_data?user_name=', USER='sdmarianne'):
-        '''Gets data for user USER from Nagios cgi '''
-        # https://hvv.itvilla.com/get_user_data?user_name=USER
-        req = 'https://'+FROM+USER
-
-        try:
-            fromnagios=requests.get(req).content.decode(encoding='UTF-8')
-            #print(fromnagios) # debug
-        except:
-            raise SessionException('problem with nagios query: ' + str(sys.exc_info()[1]))
-
-        try:
-            response = json.loads(fromnagios)
-            USERCHK=response.get('user_data').get('user_name')
-            if USERCHK != USER:
-                raise SessionException('invalid response: ' + str(response))
-            return response.get('user_data').get('user_groups'), response.get('user_data').get('hostgroups') # return tuple of [hostgroups,usergroups]
-        except:
-            raise SessionException('problem with json: ' + str(sys.exc_info()[1]))
-
+    def get_userdata_nagios(self, USER='sdmarianne'):
+        userdata = NagiosUser(USER).getuserdata()
+        return userdata.get('user_groups'), userdata.get('hostgroups')
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
         table = str(filename.split('.')[0].split('/')[-1:])
@@ -594,7 +632,7 @@ if __name__ == '__main__':
             raise SessionException('unknown query')
 
         # actual query execution
-        nagiosdata=s.get_userdata_nagios(FROM, USER) # get user rights relative to the hosts
+        nagiosdata=s.get_userdata_nagios(USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
         result = s.sql2json(query = query, filter = filter) # host or service information
 
