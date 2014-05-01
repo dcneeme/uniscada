@@ -15,8 +15,7 @@ from monpanel import *
 s=Session() # instance tekitamine, teeb ka abitabeleid
 
 #print USER
-nagiosdata=s.get_userdata_nagios(USER)
-s.nagios_hosts2sql(nagiosdata)
+s.init_userdata(USER)
 #s.dump_table()
 s.sql2json() # paranda default query ja filter
 s.sql2json(query='servicegroups', filter ='')
@@ -180,15 +179,12 @@ class Session:
             CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key);COMMIT;")
         self.conn.commit() #created servicebuffer
 
+        HostData() # create hosts datastore
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
         self.conn.commit() # created ws_hosts
 
         ControllerData() # copy of hosts configuration data into memory
         self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
-
-    def get_userdata_nagios(self, USER='sdmarianne'):
-        userdata = NagiosUser(USER).getuserdata()
-        return userdata.get('user_groups'), userdata.get('hostgroups')
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
         table = str(filename.split('.')[0].split('/')[-1:])
@@ -396,8 +392,11 @@ class Session:
         return key,staTrue,staExists,valExists,conv_coef # '',False,False,False if not defined in servicetable
 
 
+    def init_userdata(self, USER):
+        userdata = NagiosUser(USER).getuserdata()
+        data = [userdata.get('user_groups'), userdata.get('hostgroups')]
+        table = 'ws_hosts'
 
-    def nagios_hosts2sql(self, data, table = 'ws_hosts'): # incoming data is tuple: groupdata, user_data. fills ws_hosts
         ''' data from nagios put into tuple data
         [{u'saared': {u'alias': u'saared', u'members': {u'00204AB80BF9': u'saared tempa kanal'}}},
         {u'saared': {}, u'kvv': {u'00204AB80BF9': u'saared tempa kanal'}}}]
@@ -683,9 +682,11 @@ if __name__ == '__main__':
         else:
             raise SessionException('unknown query')
 
+        # get user rights relative to the hosts
+        # fill ws_hosts table and creates copies of servicetables in the memory
+        s.init_userdata(USER)
+
         # actual query execution
-        nagiosdata=s.get_userdata_nagios(USER) # get user rights relative to the hosts
-        s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
         result = s.sql2json(USER, query = query, filter = filter) # host or service information
 
         # starting with http output
