@@ -166,6 +166,15 @@ class NagiosUser:
             return
         raise SessionException('no such hostgroup')
 
+    @staticmethod
+    def check_hostaccess(user, hid):
+        if not 'user_groups' in NagiosUser.nagiosdatacache[user]:
+            raise SessionException('no usergroups defined for this user')
+        for usergroup in NagiosUser.nagiosdatacache[user]['user_groups']:
+            if hid in NagiosUser.nagiosdatacache[user]['user_groups'][usergroup]:
+                return
+        raise SessionException('no such hid')
+
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
 
@@ -348,6 +357,7 @@ class Session:
             if filter == None or filter == '':
                 raise SessionException('missing parameter')
             else:
+                NagiosUser.check_hostaccess(user, filter)
                 return self._services2json(filter)
 
         raise SessionException('illegal query: ' + query)
