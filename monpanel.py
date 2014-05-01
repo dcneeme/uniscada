@@ -109,6 +109,15 @@ class NagiosUser:
     def __str__(self):
         return str(self.__class__.nagiosdatacache)
 
+    @staticmethod
+    def check_hostgroup(user, hostgroup):
+        try:
+            if hostgroup in NagiosUser.nagiosdatacache[user]['hostgroups']:
+                return
+        except:
+            raise SessionException('user data error')
+        raise SessionException('no such hostgroup')
+
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
 
@@ -277,11 +286,12 @@ class Session:
         self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
         return self.buffer2json()
 
-    def sql2json(self, query, filter):
+    def sql2json(self, user, query, filter):
         if query == 'hostgroups':
             if filter == None or filter == '':
                 return self._hostgroups2json()
             else:
+                NagiosUser.check_hostgroup(user, filter)
                 return self._hostgroup2json(filter)
 
         if query == 'servicegroups':
@@ -634,7 +644,7 @@ if __name__ == '__main__':
         # actual query execution
         nagiosdata=s.get_userdata_nagios(USER) # get user rights relative to the hosts
         s.nagios_hosts2sql(data=nagiosdata) # fill ws_hosts table and creates copies of servicetables in the memory
-        result = s.sql2json(query = query, filter = filter) # host or service information
+        result = s.sql2json(USER, query = query, filter = filter) # host or service information
 
         # starting with http output
         http_status = 'Status: 200 OK'
