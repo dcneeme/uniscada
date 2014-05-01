@@ -53,6 +53,56 @@ class SessionAuthenticationError(SessionException):
     def __init__(self, string=""):
         SessionException.__init__(self, string)
 
+class ControllerData:
+    ''' Access to controller SQL data
+        TODO:
+            - expire/reload SQL
+    '''
+    controllercache = {}
+    def __init__(self):
+        ''' Load controller SQL to cache
+        '''
+        if len(self.__class__.controllercache) == 0:
+            self._loadsql()
+
+    def _loadsql(self):
+        ''' Load data from SQL file
+        '''
+        try:
+            sql = open('/srv/scada/sqlite/controller.sql', encoding="utf-8").read()
+        except:
+            raise SessionException('cant read controller data: ' + str(sys.exc_info()[1]))
+        try:
+            conn = sqlite3.connect(':memory:')
+            conn.executescript(sql)
+            conn.commit()
+        except:
+            raise SessionException('cant init controller database: ' + str(sys.exc_info()[1]))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('select * from controller')
+            for row in cur:
+                mac = row['mac']
+                if mac in self.__class__.controllercache:
+                    raise SessionException('data for this controller already exists')
+                self.__class__.controllercache[mac] = {}
+                for key in row.keys():
+                    self.__class__.controllercache[mac][key] = row[key]
+        except:
+            raise SessionException('cant read controller database: ' + str(sys.exc_info()[1]))
+
+    def __str__(self):
+        return str(self.__class__.controllercache)
+
+    @staticmethod
+    def get_servicetable(mac):
+        if mac in ControllerData.controllercache:
+            return ControllerData.controllercache[mac]['servicetable']
+        else:
+            raise SessionException('no data for controller')
+
+
 class NagiosUser:
     ''' Nagios data cache implementation
         TODO:
@@ -133,7 +183,7 @@ class Session:
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
         self.conn.commit() # created ws_hosts
 
-        self.sqlread('/srv/scada/sqlite/controller.sql') # copy of hosts configuration data into memory
+        ControllerData() # copy of hosts configuration data into memory
         self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
         self.sqlread('/srv/scada/sqlite/newstate.sql') # create an empty newstate buffer into memory for sending to hosts
 
@@ -319,10 +369,7 @@ class Session:
         valExists=False
         conv_coef=None
         key=''
-        Cmd="select servicetable from controller where mac='"+hid+"'"
-        cur.execute(Cmd)
-        for row in cur: # one row
-            servicetable=row[0]
+        servicetable = ControllerData.get_servicetable(hid)
         Cmd="select sta_reg, val_reg,conv_coef from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
         cur.execute(Cmd)
         for row in cur: # one row
@@ -375,15 +422,11 @@ class Session:
             groupdata=data[1].get(gid) # alias, members{}
             galias=groupdata.get('alias')
             members=groupdata.get('members') # hosts
-            for member in members.keys():
-                hid=member
-                Cmd="select servicetable from controller where mac='"+hid+"'"
-                cur.execute(Cmd)
-                for row in cur: # one answer if any
-                    servicetable=str(row[0])
-                    Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
-                    #print(Cmd) # debug
-                    self.conn.execute(Cmd)
+            for hid in members.keys():
+                servicetable = ControllerData.get_servicetable(hid)
+                Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
+                #print(Cmd) # debug
+                self.conn.execute(Cmd)
 
         Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
         cur.execute(Cmd)
