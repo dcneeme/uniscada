@@ -160,11 +160,10 @@ class NagiosUser:
 
     @staticmethod
     def check_hostgroup(user, hostgroup):
-        try:
-            if hostgroup in NagiosUser.nagiosdatacache[user]['hostgroups']:
-                return
-        except:
-            raise SessionException('user data error')
+        if not 'hostgroups' in NagiosUser.nagiosdatacache[user]:
+            raise SessionException('no hostgroups defined for this user')
+        if hostgroup in NagiosUser.nagiosdatacache[user]['hostgroups']:
+            return
         raise SessionException('no such hostgroup')
 
 class Session:
