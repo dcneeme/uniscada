@@ -389,7 +389,7 @@ class Session:
                 staTrue=False
             key=val_reg # in most cases
 
-        return key,staTrue,staExists,valExists,conv_coef # '',False,False,False if not defined in servicetable
+        return { 'key': key, 'staTrue': staTrue, 'staExists': staExists, 'valExists': valExists, 'conv_coef': conv_coef } # '',False,False,False if not defined in servicetable
 
 
     def init_userdata(self, USER):
@@ -497,17 +497,17 @@ class Session:
             #print('hid,register,value',hid,register,value) # debug
 
             regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists,conv_coef # all but first are True / False
-            key=regkey[0]
-            if regkey[1] == True: # status
+            key=regkey['key']
+            if regkey['staTrue'] == True: # status
                 status=int(value) # replace value with status
-                if regkey[3] == False:
+                if regkey['valExists'] == False:
                     value=str(status)
 
-            if regkey[1] == False: # value
-                if regkey[2] == False: # no status
+            if regkey['staTrue'] == False: # value
+                if regkey['staExists'] == False: # no status
                     status=0 # or -1?
 
-            conv_coef=regkey[4]
+            conv_coef=regkey['conv_coef']
             if key != '': # service defined in serviceregister
                 try:
                     Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
@@ -516,7 +516,7 @@ class Session:
                 except:
                     #traceback.print_exc() # debug insert
                     #return 2 # debug
-                    if regkey[1] == True: # status
+                    if regkey['staTrue'] == True: # status
                         Cmd="update servicebuffer set status='"+str(status)+"' where key='"+key+"' and hid='"+hid+"'" # no change to value
                     else: # must be value
                         Cmd="update servicebuffer set value='"+value+"' where key='"+key+"' and hid='"+hid+"'"
