@@ -590,6 +590,8 @@ class Session:
         Cmd="delete from servicebuffer where status IS NOT NULL and value<>''"
         self.conn.execute(Cmd)
         self.conn.commit()
+        if len(data) == 0:
+            return {}
         #print data # debug
         return data[0]
 
