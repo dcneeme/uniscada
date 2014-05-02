@@ -175,6 +175,21 @@ class NagiosUser:
                 return
         raise SessionException('no such hid')
 
+    @staticmethod
+    def check_servicegroup(user, servicegroup):
+        # TODO cache this data
+        if not 'user_groups' in NagiosUser.nagiosdatacache[user]:
+            raise SessionException('no usergroups defined for this user')
+        for usergroup in NagiosUser.nagiosdatacache[user]['user_groups']:
+            for hid in NagiosUser.nagiosdatacache[user]['user_groups'][usergroup]:
+                try:
+                    st = ControllerData.get_servicetable(hid)
+                    if st == servicegroup:
+                        return
+                except:
+                    pass
+        raise SessionException('no such servicegroup')
+
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
 
@@ -351,6 +366,7 @@ class Session:
             if filter == None or filter == '':
                 return self._servicegroups2json()
             else:
+                NagiosUser.check_servicegroup(user, filter)
                 return self._servicegroup2json(filter)
 
         if query == 'services':
