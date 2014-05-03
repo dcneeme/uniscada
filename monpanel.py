@@ -105,6 +105,33 @@ class StateBuffer:
         return TwoKeyBuffer(StateBuffer.statebuffer).getdata(hid)
 
 
+class ServiceBuffer:
+    ''' servicebuffer datasotre
+    '''
+    servicebuffer = {}
+    def __init__(self):
+        pass
+        # CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC);
+        # CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key)
+
+    @staticmethod
+    def insertdata(hid, key, data):
+        TwoKeyBuffer(ServiceBuffer.servicebuffer).insertdata(hid, key, data)
+
+    @staticmethod
+    def updatedata(hid, key, datakey, dataval):
+        TwoKeyBuffer(ServiceBuffer.servicebuffer).updatedata(hid, key, datakey, dataval)
+
+    @staticmethod
+    def getdata(hid):
+        return TwoKeyBuffer(ServiceBuffer.servicebuffer).getdata(hid)
+
+    @staticmethod
+    def deletenotnull(hid):
+        return
+        TwoKeyBuffer(ServiceBuffer.servicebuffer).deletenotnull(hid)
+
+
 
 class ControllerData:
     ''' Access to controller SQL data
