@@ -557,54 +557,6 @@ class Session:
         return { 'key': key, 'staTrue': staTrue, 'staExists': staExists, 'valExists': valExists, 'conv_coef': conv_coef } # '',False,False,False if not defined in servicetable
 
 
-    def init_userdata(self):
-        userdata = NagiosUser(self.user).getuserdata()
-        table = 'ws_hosts'
-
-        ''' data from nagios put into tuple data
-        [{u'saared': {u'alias': u'saared', u'members': {u'00204AB80BF9': u'saared tempa kanal'}}},
-        {u'saared': {}, u'kvv': {u'00204AB80BF9': u'saared tempa kanal'}}}]
-        Also adds servicegroup info from controllers. Does it gets dumped on each addcontroller?
-
-        '''
-        cur=self.conn.cursor()
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd)
-        # ws_hosts(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup)
-        usergroups = userdata.get('user_groups', {})
-        for gid in usergroups.keys(): # access info usr_group alusel
-            groupdata=usergroups[gid] #
-            #galias=groupdata.get('alias') # seda ei ole esialgu user_group jaoks
-            for hid in groupdata.keys():
-                halias=groupdata.get(hid)
-                Cmd="insert into "+table+"(hid,halias,ugid) values('"+hid+"','"+halias+"','"+gid+"')"
-                #self.cmd=self.cmd+'\n'+Cmd # debug
-                self.conn.execute(Cmd)
-
-        hostgroups = userdata.get('hostgroups', {})
-        for gid in hostgroups.keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
-            groupdata=hostgroups.get(gid) # alias, members{}
-            galias=groupdata.get('alias')
-            members=groupdata.get('members') # hosts
-            for hid in members.keys():
-                servicetable = ControllerData.get_servicetable(hid)
-                Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd)
-
-        Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
-        cur.execute(Cmd)
-        servicetables = []
-        for row in cur: # getting all used servicetables into memory
-            servicetable=str(row[0])
-            servicetables.append(str(row[0]))
-        for servicetable in servicetables:
-            self.sqlread('/srv/scada/sqlite/'+servicetable+'.sql')
-
-        # controller and used servicetables must remain accessible in memory
-        self.conn.commit()
-
-
     def state2state(self, host, age = 0): # updating state table in meory with the received udp data
         ''' copies all services for one host into the state copy in memory '''
         import sqlite3
@@ -819,9 +771,6 @@ if __name__ == '__main__':
         else:
             raise SessionException('unknown query')
 
-        # get user rights relative to the hosts
-        # fill ws_hosts table and creates copies of servicetables in the memory
-        s.init_userdata()
 
         # actual query execution
         result = s.sql2json(query, filter)
