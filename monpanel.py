@@ -607,8 +607,10 @@ class Session:
 
     def state2state(self, host, age = 0): # updating state table in meory with the received udp data
         ''' copies all services for one host into the state copy in memory '''
-        timefrom=0
+        import sqlite3
+        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state ja newstate tabelid
         cur2=self.conn2.cursor()
+        timefrom=0
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -619,20 +621,12 @@ class Session:
         Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'"
         cur2.execute(Cmd2)
         self.conn2.commit()
-
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction begin
         for row in cur2:
             try:
-                Cmd="insert into state(mac,register,value,timestamp) values('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"')"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd) #
+                StateBuffer.insertdata(host, row[1], { 'value': row[2], 'timestamp': float(row[3]) })
             except:
-                Cmd="UPDATE STATE SET value='"+str(row[2])+"',timestamp='"+str(row[3])+"' WHERE mac='"+row[0]+"' AND register='"+row[1]+"'"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd) #
-        self.conn.commit() # transaction end
-
+                StateBuffer.updatedata(host, row[1], 'value', row[2])
+                StateBuffer.updatedata(host, row[1], 'timestamp', float(row[3]))
 
     def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
         ''' Returns service refresh data as json in case of change or update from one host.
