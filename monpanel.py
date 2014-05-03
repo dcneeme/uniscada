@@ -400,19 +400,8 @@ class Session:
         self.user = user
         ControllerData() # copy of hosts configuration data into memory
         self.apiuser = APIUser(self.user)
-        self.conn = sqlite3.connect(':memory:')
-        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state tabel
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
 
-        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC); \
-            CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key);COMMIT;")
-        self.conn.commit() #created servicebuffer
-
-        HostData() # create hosts datastore
-        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
-        self.conn.commit() # created ws_hosts
-
-        self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
         table = str(filename.split('.')[0].split('/')[-1:])
