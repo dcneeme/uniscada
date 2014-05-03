@@ -497,7 +497,7 @@ class Session:
     def _services2json(self, filter):
         self.state2state(host=filter, age=300)
         self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-        return self.buffer2json()
+        return self.buffer2json(host=filter)
 
     def sql2json(self, query, filter):
         if query == 'hostgroups':
@@ -702,7 +702,7 @@ class Session:
 
 
 
-    def buffer2json(self):
+    def buffer2json(self, host):
         '''  Returns json for service refresh in websocket client '''
         #servicebuffer(hid,key,status INT,value,timestamp NUMERIC)
         cur=self.conn.cursor()
