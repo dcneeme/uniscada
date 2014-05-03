@@ -402,6 +402,8 @@ class Session:
 
     def __init__(self, user):
         self.user = user
+        ControllerData() # copy of hosts configuration data into memory
+        self.apiuser = APIUser(self.user)
         self.conn = sqlite3.connect(':memory:')
         self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state tabel
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
@@ -414,7 +416,6 @@ class Session:
         self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
         self.conn.commit() # created ws_hosts
 
-        ControllerData() # copy of hosts configuration data into memory
         self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
 
     def sqlread(self, filename): # drops table and reads from sql file filename that must exist
@@ -555,18 +556,21 @@ class Session:
             if filter == None or filter == '':
                 return self._hostgroups2json()
             else:
+                self.apiuser.check_hostgroup_access(filter)
                 return self._hostgroup2json(filter)
 
         if query == 'servicegroups':
             if filter == None or filter == '':
                 return self._servicegroups2json()
             else:
+                self.apiuser.check_servicegroup_access(filter)
                 return self._servicegroup2json(filter)
 
         if query == 'services':
             if filter == None or filter == '':
                 raise SessionException('missing parameter')
             else:
+                self.apiuser.check_host_access(filter)
                 return self._services2json(filter)
 
         raise SessionException('illegal query: ' + query)
