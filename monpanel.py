@@ -397,9 +397,6 @@ class APIUser:
             return
         raise SessionException('no such servicegroup for this user')
 
-
-
-
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
 
@@ -436,18 +433,6 @@ class Session:
             raise SessionException('sqlread: '+str(sys.exc_info()[1]))
 
 
-
-    def dump_table(self, table = 'ws_hosts', where=''):
-        ''' reads the content of the table, debugging needs only '''
-        ''' reads the content of the table, debugging needs only '''
-        Cmd ="SELECT * from "+table
-        if len(where)>0:
-            Cmd=Cmd+' '+where # whatever condition
-        cur = self.conn.cursor()
-        cur.execute(Cmd)
-        for row in cur:
-            print(row)
-        self.conn.commit()
 
     def _sqlcmd2json(self, Cmd):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
@@ -596,6 +581,7 @@ class Session:
         valExists=False
         conv_coef=None
         key=''
+
         servicetable = ControllerData.get_servicetable(hid)
         Cmd="select sta_reg, val_reg,conv_coef from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
         cur.execute(Cmd)
@@ -878,12 +864,7 @@ if __name__ == '__main__':
     http_status = 'Status: 200 OK'
     http_data = {}
 
-    #print(http_status) # debug jaoks varasemaks, et naeks palju aega votab taitmine
-    #print("Content-type: application/json; charset=utf-8") # debug jaoks varasemaks
-    #print
-
     try:
-
 
         try:
             # Python 2
@@ -898,14 +879,11 @@ if __name__ == '__main__':
             raise SessionAuthenticationError('not authenticated')
 
         if DEBUG:
-            USER='sdmarianne' # debug, kui kommenteerida, votab tegeliku kasutaja cookie alusel.
+            USER='sdmarianne'
 
         s=Session()
 
-        # Create instance of FieldStorage
         form = cgi.FieldStorage()
-
-        # Get data from fields
         query =  form.getvalue('query')
         filter = None
 
@@ -923,7 +901,7 @@ if __name__ == '__main__':
             if filter == None:
                 filter = form.getvalue('servicegroup')
 
-        elif query == 'services': # return service update information as pushed via websocket
+        elif query == 'services':
             if filter == None:
                 filter = form.getvalue('host')
 
@@ -952,13 +930,8 @@ if __name__ == '__main__':
         http_data['message'] = str(e);
 
     finally:
-        print(http_status) # debug jaoks varasemaks viia
+        print(http_status)
         print("Content-type: application/json; charset=utf-8")
-        print("Access-Control-Allow-Origin: *") # mikk tahtis 15.04
+        print("Access-Control-Allow-Origin: *")
         print()
-        print(json.dumps(http_data, indent=4))
-        #print 'temporary debug data follows' # debug
-        #print(query,filter)
-        #print nagiosdata # debug
-        #s.dump_table() # debug
-        #print result # debug
+        print(json.dumps(http_data, indent = 4))
