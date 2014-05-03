@@ -436,34 +436,25 @@ class Session:
 
 
 
-    def _sqlcmd2json(self, Cmd):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows = cur.execute(Cmd).fetchall()
-        self.conn.commit()
-        return [dict(ix) for ix in rows]
-
     def _hostgroups2json(self):
-        return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
+        hostgroups = []
+        hostgroupdata = APIUser(self.user).getuserdata().get('hostgroups', {})
+        for hostgroup in hostgroupdata:
+            hostgroups.append({'hostgroup': hostgroup, 'alias': hostgroupdata[hostgroup].get('alias', '')})
+        return hostgroups
 
     def _servicegroups2json(self):
-        return self._sqlcmd2json("select servicegroup from ws_hosts group by servicegroup")
+        servicegroups = []
+        for servicegroup in self.apiuser.getuserdata().get('servicegroups', {}):
+            servicegroups.append({'servicegroup': servicegroup})
+        return servicegroups
 
     def _hostgroup2json(self, filter):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows={}
-        Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # hostid grupis
-        cur.execute(Cmd)
-        hdata={}
-        hgdata = {"hostgroup":filter, "hosts":[] }
-        for row in cur:
-            hdata['id']=row[0]
-            hdata['servicegroup']=row[1]
-            hdata['alias']=row[2]
-            hgdata['hosts'].append(hdata)
-            hdata={}
-        return hgdata
+        hostgroupdata = self.apiuser.getuserdata().get('hostgroups', {}).get(filter, {})
+        hostgroup = { 'hostgroup': filter, 'hosts': [] }
+        for host in hostgroupdata['hosts']:
+            hostgroup['hosts'].append({ 'id': host, 'alias': hostgroupdata['hosts'].get(host, {}).get('alias', ''), 'servicegroup': hostgroupdata['hosts'].get(host, {}).get('servicegroup', '')})
+        return hostgroup
 
     def _servicegroup2json(self, filter = 'service_pumplad4_ee'):
         self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
