@@ -52,6 +52,38 @@ class SessionAuthenticationError(SessionException):
     def __init__(self, string=""):
         SessionException.__init__(self, string)
 
+
+class TwoKeyBuffer:
+    ''' buffer datasotre
+    '''
+    def __init__(self, buffer):
+        self.buffer = buffer
+
+    def insertdata(self, key1, key2, data):
+        if not key1 in self.buffer:
+            self.buffer[key1] = {}
+        if key2 in self.buffer[key1]:
+            raise Exception # data already in buffer
+        self.buffer[key1][key2] = data
+
+    def updatedata(self, key1, key2, datakey, dataval):
+        if not key1 in self.buffer:
+            raise Exception # no such key1
+        if not key2 in self.buffer[key1]:
+            raise Exception # no such key2
+        self.buffer[key1][key2][datakey] = dataval
+
+    def getdata(self, key1):
+        if key1 in self.buffer:
+            return self.buffer[key1]
+        return {}
+
+    def deletenotnull(self, key1):
+        return
+        if key1 in self.buffer:
+            del self.buffer[key1]
+
+
 class ControllerData:
     ''' Access to controller SQL data
         TODO:
