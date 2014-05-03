@@ -402,25 +402,6 @@ class Session:
         self.apiuser = APIUser(self.user)
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
 
-
-    def sqlread(self, filename): # drops table and reads from sql file filename that must exist
-        table = str(filename.split('.')[0].split('/')[-1:])
-        try:
-            sql = open(filename, encoding="utf-8").read()
-        except:
-            raise SessionException('FAILURE in sqlread ' + filename + ': '+str(sys.exc_info()[1])) # aochannels ei pruugi olemas olla alati!
-
-        Cmd='drop table if exists '+table
-        try:
-            self.conn.execute(Cmd) # drop the table if it exists
-            self.conn.commit()
-            self.conn.executescript(sql) # read table into database
-            self.conn.commit()
-        except:
-            raise SessionException('sqlread: '+str(sys.exc_info()[1]))
-
-
-
     def _hostgroups2json(self):
         hostgroups = []
         hostgroupdata = APIUser(self.user).getuserdata().get('hostgroups', {})
