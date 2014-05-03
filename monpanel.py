@@ -132,6 +132,65 @@ class ServiceBuffer:
         TwoKeyBuffer(ServiceBuffer.servicebuffer).deletenotnull(hid)
 
 
+class ServiceData:
+    ''' servicegroup datastore
+    '''
+    servicedata = {}
+    def __init__(self, servicegroup):
+        self.servicegroup = servicegroup
+        if servicegroup in self.__class__.servicedata:
+            return
+        self._loadsql()
+
+    def _loadsql(self):
+        ''' Load data from SQL file
+        '''
+        try:
+            sql = open('/srv/scada/sqlite/' + self.servicegroup + '.sql', encoding="utf-8").read()
+        except:
+            print("ERROR: can't read sql /srv/scada/sqlite/" + self.servicegroup + ".sql: " + str(sys.exc_info()[1]))
+            return
+            raise SessionException('cant read servicegroup data for ' + self.servicegroup + ': ' + str(sys.exc_info()[1]))
+        try:
+            conn = sqlite3.connect(':memory:')
+            conn.executescript(sql)
+            conn.commit()
+        except:
+            raise SessionException('cant init servicegroup database: ' + str(sys.exc_info()[1]))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('select * from ' + self.servicegroup)
+            self.__class__.servicedata[self.servicegroup] = {}
+            self.__class__.servicedata[self.servicegroup]['sta_reg'] = {}
+            self.__class__.servicedata[self.servicegroup]['val_reg'] = {}
+            for row in cur:
+                sta_reg = row['sta_reg']
+                if sta_reg in self.__class__.servicedata[self.servicegroup]['sta_reg']:
+                    raise SessionException('data for sta_reg "' + sta_reg + '" already exists')
+                self.__class__.servicedata[self.servicegroup]['sta_reg'][sta_reg] = {}
+                for key in row.keys():
+                    self.__class__.servicedata[self.servicegroup]['sta_reg'][sta_reg][key] = row[key]
+                val_reg = row['val_reg']
+                if val_reg != None and val_reg != '':
+                    if val_reg in self.__class__.servicedata[self.servicegroup]['val_reg']:
+                        raise SessionException('data for val_reg "' + val_reg + '" already exists')
+                    self.__class__.servicedata[self.servicegroup]['val_reg'][val_reg] = {}
+                    for key in row.keys():
+                        self.__class__.servicedata[self.servicegroup]['val_reg'][val_reg][key] = row[key]
+        except:
+            raise SessionException('cant read servicegroup database: ' + str(sys.exc_info()[1]))
+
+    def getservicedata(self):
+        ''' Return service data from cache
+
+        :return: service data structure
+
+        '''
+        if self.servicegroup in self.__class__.servicedata:
+            return self.__class__.servicedata[self.servicegroup]
+        raise SessionException('servicegroup data missing')
+
 
 class ControllerData:
     ''' Access to controller SQL data
