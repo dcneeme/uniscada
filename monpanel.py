@@ -688,58 +688,32 @@ class Session:
 
     def buffer2json(self, host):
         '''  Returns json for service refresh in websocket client '''
-        #servicebuffer(hid,key,status INT,value,timestamp NUMERIC)
-        cur=self.conn.cursor()
-        cur2=self.conn.cursor()
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction for servicebuffer
-        Cmd="select hid from servicebuffer where status IS NOT NULL and value<>'' group by hid" # wait for for update
-        cur.execute(Cmd)
-        hid=''
-        hid=''
-        data=[] # tegelikult 1 host korraga
         hdata={}
-        for row in cur: # hosts loop
-            hid=row[0] # host id
-            hdata={}
-            hdata['host']=hid
-            hdata['services']=[]
-            hdata['timestamp']=self.ts # current time, not the time from hosts
-            # servicebuffer(hid,svc_name,status INT,value,timestamp NUMERIC);
-            Cmd="select * from servicebuffer where status IS NOT NULL and value<>'' and hid='"+hid+"'" #
-            cur2.execute(Cmd)
-            for row2 in cur2: # services loop
-                key=row2[1]
-                status=row2[2] # int
-                value=row2[3] #
-                conv_coef=row2[4] # num or none
-                sdata={}
-                sdata['key']=key
-                sdata['status']=status
-                sdata['value']=[]
-                if key[-1:] == 'W':
-                    valmems=value.split(' ') # only if key ends with W
-                else:
-                    valmems=[value] # single value
+        hdata['host'] = host
+        hdata['services'] = []
+        hdata['timestamp'] = round(time.time(),1) # current time, not the time from hosts
+        buffdata = ServiceBuffer.getdata(host)
+        for key in buffdata:
+            value = buffdata[key]['value']
+            conv_coef = buffdata[key]['conv_coef']
+            sdata={}
+            sdata['key'] = key
+            sdata['status'] =buffdata[key]['status']
+            sdata['value']=[]
+            if key[-1:] == 'W':
+                valmems=value.split(' ') # only if key ends with W
+            else:
+                valmems=[value] # single value
 
-                for mnum in range(len(valmems)): # value member loop
-                    # {}
-                    #valmember['member']=mnum+1
-                    #valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
-                    #sdata['value'].append(valmember) # member ready
-                    sdata['value'].append(self.stringvalue2scale(valmems[mnum],conv_coef))
-                hdata['services'].append(sdata) # service ready
-            #print('hdata: ',hdata) # debug
-            data.append(hdata) # host ready
-
-
-        Cmd="delete from servicebuffer where status IS NOT NULL and value<>''"
-        self.conn.execute(Cmd)
-        self.conn.commit()
-        if len(data) == 0:
-            return {}
-        #print data # debug
-        return data[0]
+            for mnum in range(len(valmems)): # value member loop
+                # {}
+                #valmember['member']=mnum+1
+                #valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
+                #sdata['value'].append(valmember) # member ready
+                sdata['value'].append(self.stringvalue2scale(valmems[mnum],conv_coef))
+            hdata['services'].append(sdata) # service ready
+        ServiceBuffer.deletenotnull(host)
+        return hdata
 
 
     def stringvalue2scale(self, input = '', coeff = None):
