@@ -26,7 +26,6 @@ s.buffer2json() # service update json ws kliendle
 import cgi, cgitb ,re # Import modules for CGI handling
 #cgitb.enable()
 
-import sqlite3
 import time
 import traceback
 import os
@@ -141,6 +140,7 @@ class ServiceData:
     def _loadsql(self):
         ''' Load data from SQL file
         '''
+        import sqlite3
         try:
             sql = open('/srv/scada/sqlite/' + self.servicegroup + '.sql', encoding="utf-8").read()
         except:
@@ -203,6 +203,7 @@ class ControllerData:
     def _loadsql(self):
         ''' Load data from SQL file
         '''
+        import sqlite3
         try:
             sql = open('/srv/scada/sqlite/controller.sql', encoding="utf-8").read()
         except:
