@@ -299,6 +299,105 @@ class NagiosUser:
         return str(self.__class__.nagiosdatacache)
 
 
+class APIUser:
+    ''' API user data and permission checks
+        TODO:
+            - reload/expire old entries
+    '''
+    userdatacache = {}
+    ''' user data cache structure:
+        key1:
+            username
+        key2:
+            nagiosdata - original data from NagiosUser
+            hid - list of accessible host IDs
+            servicegroups - list of servicegroups
+            hostgroups - list of hostgroups
+    '''
+
+    def __init__(self, user):
+        ''' Setup user data cache if empty
+
+        :param user: user name
+
+        '''
+        if user == None or user == '':
+            raise Exception('missing user')
+        self.user = user
+        if user in self.__class__.userdatacache:
+            # user already known
+            return
+        self._loaduserdata()
+
+    def _loaduserdata(self):
+        ''' Load and setup user data cache
+        '''
+        userdata = {}
+        nagios = NagiosUser(self.user)
+        userdata['nagiosdata'] = nagios.getuserdata()
+
+        userdata['hid'] = {}
+        usergroups = userdata['nagiosdata'].get('user_groups', {})
+        for gid in usergroups.keys(): # access info usr_group alusel
+            groupdata = usergroups[gid]
+            for hid in groupdata.keys():
+                userdata['hid'][hid] = {}
+                userdata['hid'][hid]['halias'] = groupdata.get(hid)
+                userdata['hid'][hid]['gid'] = gid
+
+        userdata['hostgroups'] = {}
+        userdata['servicegroups'] = {}
+        # add only hostgroups where accessible hosts exists
+        for hostgroup in userdata['nagiosdata'].get('hostgroups', {}):
+            if len(hostgroup) == 0:
+                continue
+            for host in userdata['nagiosdata']['hostgroups'][hostgroup].get('members', {}):
+                if host in userdata['hid']:
+                    if not hostgroup in userdata['hostgroups']:
+                        userdata['hostgroups'][hostgroup] = {'alias': userdata['nagiosdata']['hostgroups'][hostgroup].get('alias', '')}
+                    if not 'hosts' in userdata['hostgroups'][hostgroup]:
+                        userdata['hostgroups'][hostgroup]['hosts'] = {}
+                    userdata['hostgroups'][hostgroup]['hosts'][host] = {}
+                    # add additional data from ControllerData for faster access
+                    userdata['hostgroups'][hostgroup]['hosts'][host]['alias'] = userdata['nagiosdata']['hostgroups'][hostgroup]['members'][host]
+                    servicegroup = ControllerData.get_servicetable(host)
+                    userdata['hostgroups'][hostgroup]['hosts'][host]['servicegroup'] = servicegroup
+                    userdata['servicegroups'][servicegroup] = True
+
+        for servicegroup in userdata['servicegroups']: # getting all used servicetables into memory
+            ServiceData(servicegroup)
+
+        self.__class__.userdatacache[self.user] = userdata
+
+    def getuserdata(self):
+        ''' Return user data from cache
+
+        :return: user data structure
+
+        '''
+        if self.user in self.__class__.userdatacache:
+            return self.__class__.userdatacache[self.user]
+        raise SessionException('user data missing')
+
+    def check_hostgroup_access(self, hostgroup):
+        userdata = self.getuserdata()
+        if hostgroup in userdata.get('hostgroups', {}):
+            return
+        raise SessionException('no such hostgroup for this user')
+
+    def check_host_access(self, hid):
+        userdata = self.getuserdata()
+        if hid in userdata.get('hid', {}):
+            return
+        raise SessionException('no such host for this user')
+
+    def check_servicegroup_access(self, servicegroup):
+        userdata = self.getuserdata()
+        if servicegroup in userdata.get('servicegroups', {}):
+            return
+        raise SessionException('no such servicegroup for this user')
+
+
 
 
 class Session:
