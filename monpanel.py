@@ -436,58 +436,40 @@ class Session:
 
 
 
-    def _sqlcmd2json(self, Cmd):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows = cur.execute(Cmd).fetchall()
-        self.conn.commit()
-        return [dict(ix) for ix in rows]
-
     def _hostgroups2json(self):
-        return self._sqlcmd2json("select hgid as hostgroup, hgalias as alias from ws_hosts group by hgid")
+        hostgroups = []
+        hostgroupdata = APIUser(self.user).getuserdata().get('hostgroups', {})
+        for hostgroup in hostgroupdata:
+            hostgroups.append({'hostgroup': hostgroup, 'alias': hostgroupdata[hostgroup].get('alias', '')})
+        return hostgroups
 
     def _servicegroups2json(self):
-        return self._sqlcmd2json("select servicegroup from ws_hosts group by servicegroup")
+        servicegroups = []
+        for servicegroup in self.apiuser.getuserdata().get('servicegroups', {}):
+            servicegroups.append({'servicegroup': servicegroup})
+        return servicegroups
 
     def _hostgroup2json(self, filter):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows={}
-        Cmd="select hid, servicegroup, halias from ws_hosts where hgid='"+filter+"'" # hostid grupis
-        cur.execute(Cmd)
-        hdata={}
-        hgdata = {"hostgroup":filter, "hosts":[] }
-        for row in cur:
-            hdata['id']=row[0]
-            hdata['servicegroup']=row[1]
-            hdata['alias']=row[2]
-            hgdata['hosts'].append(hdata)
-            hdata={}
-        return hgdata
+        hostgroupdata = self.apiuser.getuserdata().get('hostgroups', {}).get(filter, {})
+        hostgroup = { 'hostgroup': filter, 'hosts': [] }
+        for host in hostgroupdata['hosts']:
+            hostgroup['hosts'].append({ 'id': host, 'alias': hostgroupdata['hosts'].get(host, {}).get('alias', ''), 'servicegroup': hostgroupdata['hosts'].get(host, {}).get('servicegroup', '')})
+        return hostgroup
 
-    def _servicegroup2json(self, filter = 'service_pumplad4_ee'):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows={}
-
+    def _servicegroup2json(self, filter):
+        sd = ServiceData(filter).getservicedata()['sta_reg']
         #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
-        Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter #
-        cur.execute(Cmd) #
-        hgdata = {"servicegroup": filter, "services":[] }
-        for row in cur: # service loop
+        hgdata = { "servicegroup": filter, "services": [] }
+        for sta_reg in sd:
             hdata={}
-            sta_reg=row[0]
-            val_reg=row[1]
-            hdata['svc_name']=row[2]
-            unit=row[3]
-            desc=[]
-            desc.append(row[4])
-            desc.append(row[5])
-            desc.append(row[6])
-            multiperf=row[7]
-            multivalue=row[8] # to be shown in the end of desc after colon
+            hdata['svc_name']=sd[sta_reg]['svc_name']
+            val_reg=sd[sta_reg]['val_reg']
+            unit=sd[sta_reg]['out_unit']
+            desc=[ sd[sta_reg]['desc0'], sd[sta_reg]['desc1'], sd[sta_reg]['desc2'] ]
+            multiperf=sd[sta_reg]['multiperf']
+            multivalue=sd[sta_reg]['multivalue'] # to be shown in the end of desc after colon
             try: # igas teenusetabelis ei ole esialgu seda tulpa
-                multicfg=row[9] # configurable
+                multicfg=sd[sta_reg]['multicfg'] # configurable
             except:
                 multicfg=''
 
