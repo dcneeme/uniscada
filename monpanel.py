@@ -400,7 +400,8 @@ class APIUser:
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
 
-    def __init__(self):
+    def __init__(self, user):
+        self.user = user
         self.conn = sqlite3.connect(':memory:')
         self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state tabel
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
@@ -549,7 +550,7 @@ class Session:
         self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
         return self.buffer2json()
 
-    def sql2json(self, user, query, filter):
+    def sql2json(self, query, filter):
         if query == 'hostgroups':
             if filter == None or filter == '':
                 return self._hostgroups2json()
@@ -610,8 +611,8 @@ class Session:
         return { 'key': key, 'staTrue': staTrue, 'staExists': staExists, 'valExists': valExists, 'conv_coef': conv_coef } # '',False,False,False if not defined in servicetable
 
 
-    def init_userdata(self, USER):
-        userdata = NagiosUser(USER).getuserdata()
+    def init_userdata(self):
+        userdata = NagiosUser(self.user).getuserdata()
         table = 'ws_hosts'
 
         ''' data from nagios put into tuple data
@@ -881,7 +882,7 @@ if __name__ == '__main__':
         if DEBUG:
             USER='sdmarianne'
 
-        s=Session()
+        s=Session(USER)
 
         form = cgi.FieldStorage()
         query =  form.getvalue('query')
@@ -910,10 +911,10 @@ if __name__ == '__main__':
 
         # get user rights relative to the hosts
         # fill ws_hosts table and creates copies of servicetables in the memory
-        s.init_userdata(USER)
+        s.init_userdata()
 
         # actual query execution
-        result = s.sql2json(USER, query = query, filter = filter) # host or service information
+        result = s.sql2json(query, filter)
 
         # starting with http output
         http_status = 'Status: 200 OK'
