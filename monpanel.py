@@ -298,37 +298,8 @@ class NagiosUser:
     def __str__(self):
         return str(self.__class__.nagiosdatacache)
 
-    @staticmethod
-    def check_hostgroup(user, hostgroup):
-        if not 'hostgroups' in NagiosUser.nagiosdatacache[user]:
-            raise SessionException('no hostgroups defined for this user')
-        if hostgroup in NagiosUser.nagiosdatacache[user]['hostgroups']:
-            return
-        raise SessionException('no such hostgroup')
 
-    @staticmethod
-    def check_hostaccess(user, hid):
-        if not 'user_groups' in NagiosUser.nagiosdatacache[user]:
-            raise SessionException('no usergroups defined for this user')
-        for usergroup in NagiosUser.nagiosdatacache[user]['user_groups']:
-            if hid in NagiosUser.nagiosdatacache[user]['user_groups'][usergroup]:
-                return
-        raise SessionException('no such hid')
 
-    @staticmethod
-    def check_servicegroup(user, servicegroup):
-        # TODO cache this data
-        if not 'user_groups' in NagiosUser.nagiosdatacache[user]:
-            raise SessionException('no usergroups defined for this user')
-        for usergroup in NagiosUser.nagiosdatacache[user]['user_groups']:
-            for hid in NagiosUser.nagiosdatacache[user]['user_groups'][usergroup]:
-                try:
-                    st = ControllerData.get_servicetable(hid)
-                    if st == servicegroup:
-                        return
-                except:
-                    pass
-        raise SessionException('no such servicegroup')
 
 class Session:
     ''' This class handles data for mobile operator panel of the UniSCADA monitoring via websocket '''
@@ -499,21 +470,18 @@ class Session:
             if filter == None or filter == '':
                 return self._hostgroups2json()
             else:
-                NagiosUser.check_hostgroup(user, filter)
                 return self._hostgroup2json(filter)
 
         if query == 'servicegroups':
             if filter == None or filter == '':
                 return self._servicegroups2json()
             else:
-                NagiosUser.check_servicegroup(user, filter)
                 return self._servicegroup2json(filter)
 
         if query == 'services':
             if filter == None or filter == '':
                 raise SessionException('missing parameter')
             else:
-                NagiosUser.check_hostaccess(user, filter)
                 return self._services2json(filter)
 
         raise SessionException('illegal query: ' + query)
