@@ -745,8 +745,6 @@ if __name__ == '__main__':
         if DEBUG:
             USER='sdmarianne'
 
-        s=Session(USER)
-
         form = cgi.FieldStorage()
         query =  form.getvalue('query')
         filter = None
@@ -772,11 +770,9 @@ if __name__ == '__main__':
         else:
             raise SessionException('unknown query')
 
-
-        # actual query execution
+        s = Session(USER)
         result = s.sql2json(query, filter)
 
-        # starting with http output
         http_status = 'Status: 200 OK'
         http_data = result
 
