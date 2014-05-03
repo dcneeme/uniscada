@@ -83,6 +83,28 @@ class TwoKeyBuffer:
         if key1 in self.buffer:
             del self.buffer[key1]
 
+class StateBuffer:
+    '''  state buffer
+    '''
+    statebuffer = {}
+    def __init__(self):
+        pass
+        # CREATE TABLE state(mac,register,value,timestamp, alarm, 'due_time');
+        # CREATE UNIQUE INDEX macreg on state(mac,register);
+
+    @staticmethod
+    def insertdata(hid, register, data):
+        TwoKeyBuffer(StateBuffer.statebuffer).insertdata(hid, register, data)
+
+    @staticmethod
+    def updatedata(hid, register, datakey, dataval):
+        TwoKeyBuffer(StateBuffer.statebuffer).updatedata(hid, register, datakey, dataval)
+
+    @staticmethod
+    def getdata(hid):
+        return TwoKeyBuffer(StateBuffer.statebuffer).getdata(hid)
+
+
 
 class ControllerData:
     ''' Access to controller SQL data
