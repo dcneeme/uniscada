@@ -526,39 +526,33 @@ class Session:
 
     def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
         ''' Must be used for every service from every host, to use the correct key and recalculate numbers in values '''
-        cur=self.conn.cursor() # peaks olema soltumatu kursor
-        sta_reg=''
-        val_reg=''
-        staTrue=False
-        staExists=False
-        valExists=False
-        conv_coef=None
+        staTrue = False
+        staExists = False
+        valExists = False
+        conv_coef = None
         key=''
 
         servicetable = ControllerData.get_servicetable(hid)
-        Cmd="select sta_reg, val_reg,conv_coef from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
-        cur.execute(Cmd)
-        for row in cur: # one row
-            #svc_name=row[0]
-            sta_reg=row[0]
-            val_reg=row[1]
-            conv_coef=eval(row[2]) if row[2] != '' else None
+        sd = ServiceData(servicetable).getservicedata()
 
-        if sta_reg !='': # sta_reg in use
-            staExists=True
-            if register == sta_reg:
-                staTrue=True
-            elif register == val_reg:
-                staTrue=False
-            key=val_reg # in most cases
+        if register in sd['val_reg'] and register in sd['sta_reg']:
+            raise SessionException('both val_reg and sta_reg with the same key')
 
-        if val_reg !='': # val_reg exist
-            valExists=True
-            if register == sta_reg:
-                staTrue=True
-            elif register == val_reg:
-                staTrue=False
-            key=val_reg # in most cases
+        if register in sd['sta_reg']:
+            conv_coef = sd['sta_reg'][register].get('conv_coef', None)
+            staExists = True
+            staTrue = True
+            key = register
+            if sd['sta_reg'][register]['val_reg'] != '':
+                valExists = True
+
+        if register in sd['val_reg']:
+            conv_coef = sd['val_reg'][register].get('conv_coef', None)
+            valExists = True
+            staTrue = False
+            key = register
+            if sd['val_reg'][register]['sta_reg'] != '':
+                staExists = True
 
         return { 'key': key, 'staTrue': staTrue, 'staExists': staExists, 'valExists': valExists, 'conv_coef': conv_coef } # '',False,False,False if not defined in servicetable
 
