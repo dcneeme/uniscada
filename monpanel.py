@@ -736,6 +736,19 @@ if __name__ == '__main__':
 
     USER = None
 
+    URL = ''
+    if 'HTTPS' in os.environ and os.environ['HTTPS'] == 'on':
+        URL += 'https://' + os.environ.get('HTTP_HOST', 'localhost')
+        port = os.environ.get('SERVER_PORT', '443')
+        if port != '443':
+            URL += ':' + port
+    else:
+        URL += 'http://' + os.environ.get('HTTP_HOST', 'localhost')
+        port = os.environ.get('SERVER_PORT', '80')
+        if port != '80':
+            URL += ':' + port
+    URL += os.environ.get('REQUEST_URI', '/')
+
     http_status = 'Status: 200 OK'
     http_data = {}
 
@@ -803,7 +816,9 @@ if __name__ == '__main__':
         http_data = result
 
     except SessionAuthenticationError as e:
-        http_status = 'Status: 401 Not Found'
+        http_status = 'Status: 307 Temporary Redirect'
+        http_status += "\n" + 'Location: https://login.itvilla.com/login'
+        http_status += "\n" + 'Set-Cookie: CookieAuth_Redirect=' + URL + '; Domain=.itvilla.com; Path=/'
         http_data['message'] = str(e);
 
     except SessionException as e:
