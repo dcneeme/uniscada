@@ -12,12 +12,8 @@ DEBUG = True
 ''' USAGE
 
 from monpanel import *
-s=Session() # instance tekitamine, teeb ka abitabeleid
-
-#print USER
-s.init_userdata(USER)
-#s.dump_table()
-s.sql2json() # paranda default query ja filter
+s=Session(USER) # instance tekitamine, teeb ka abitabeleid
+s.init_userdata()
 s.sql2json(query='servicegroups', filter ='')
 s.sql2json(query='hostgroups', filter ='saared')
 s.sql2json(query='servicegroup', filter ='service_pumplad4_ee')
