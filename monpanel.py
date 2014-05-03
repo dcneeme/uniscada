@@ -634,7 +634,6 @@ class Session:
             Not needed after websocket is activated.
         '''
         timefrom=0
-        cur=self.conn.cursor()
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -642,24 +641,25 @@ class Session:
             timefrom = self.ts - age
         else: # None korral arvestab eelmise lugemisega
             timefrom= self.ts
-        #  servicebuffer(hid,svc_name,sta_reg,status INT,val_reg,value,timestamp NUMERIC) via conn
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction for servicebuffer
 
-        Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
-        cur.execute(Cmd)
-        #self.conn.commit()
-        for row in cur:
-            hid=row[0]
-            register=row[1]
-            value=row[2]
-            timestamp=row[3]
+        state = StateBuffer.getdata(host)
+        for register in state:
+            if state[register]['timestamp'] <= timefrom:
+                continue
+            hid=host
+            value=state[register]['value']
+            status = 0
+            timestamp=state[register]['timestamp']
             #print('hid,register,value',hid,register,value) # debug
 
             regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists,conv_coef # all but first are True / False
             key=regkey['key']
             if regkey['staTrue'] == True: # status
-                status=int(value) # replace value with status
+                try:
+                    status=int(value) # replace value with status
+                except:
+                    # FIXME this should not happen!
+                    print("ERROR: value=" + str(value))
                 if regkey['valExists'] == False:
                     value=str(status)
 
@@ -670,20 +670,16 @@ class Session:
             conv_coef=regkey['conv_coef']
             if key != '': # service defined in serviceregister
                 try:
-                    Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
-                    #print(Cmd) # debug
-                    self.conn.execute(Cmd)
+                    ServiceBuffer.insertdata(hid, key, { 'status': status, 'value': value, 'conv_coef': conv_coef, 'timestamp': timestamp})
+
                 except:
                     #traceback.print_exc() # debug insert
                     #return 2 # debug
                     if regkey['staTrue'] == True: # status
-                        Cmd="update servicebuffer set status='"+str(status)+"' where key='"+key+"' and hid='"+hid+"'" # no change to value
+                        ServiceBuffer.updatedata(hid, key, 'status', status)
                     else: # must be value
-                        Cmd="update servicebuffer set value='"+value+"' where key='"+key+"' and hid='"+hid+"'"
-                    self.conn.execute(Cmd)
-                #print(Cmd) # debug, what was selected
+                        ServiceBuffer.updatedata(hid, key, 'value', value)
 
-        self.conn.commit() # servicebuffer transaction end
         self.ts_last = self.ts
         return 0
 
