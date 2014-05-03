@@ -12,12 +12,8 @@ DEBUG = True
 ''' USAGE
 
 from monpanel import *
-s=Session() # instance tekitamine, teeb ka abitabeleid
-
-#print USER
-s.init_userdata(USER)
-#s.dump_table()
-s.sql2json() # paranda default query ja filter
+s=Session(USER) # instance tekitamine, teeb ka abitabeleid
+s.init_userdata()
 s.sql2json(query='servicegroups', filter ='')
 s.sql2json(query='hostgroups', filter ='saared')
 s.sql2json(query='servicegroup', filter ='service_pumplad4_ee')
@@ -404,37 +400,7 @@ class Session:
         self.user = user
         ControllerData() # copy of hosts configuration data into memory
         self.apiuser = APIUser(self.user)
-        self.conn = sqlite3.connect(':memory:')
-        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state tabel
         self.ts_last = 0 # last execution of state2buffer(), 0 means never
-
-        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE servicebuffer(hid,key,status INT,value,conv_coef INT,timestamp NUMERIC); \
-            CREATE UNIQUE INDEX hid_key_servicebuffer on 'servicebuffer'(hid,key);COMMIT;")
-        self.conn.commit() #created servicebuffer
-
-        HostData() # create hosts datastore
-        self.conn.executescript("BEGIN TRANSACTION;CREATE TABLE 'ws_hosts'(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup);COMMIT;")
-        self.conn.commit() # created ws_hosts
-
-        self.sqlread('/srv/scada/sqlite/state.sql') # create an empty state buffer into memory for receiving from hosts
-
-    def sqlread(self, filename): # drops table and reads from sql file filename that must exist
-        table = str(filename.split('.')[0].split('/')[-1:])
-        try:
-            sql = open(filename, encoding="utf-8").read()
-        except:
-            raise SessionException('FAILURE in sqlread ' + filename + ': '+str(sys.exc_info()[1])) # aochannels ei pruugi olemas olla alati!
-
-        Cmd='drop table if exists '+table
-        try:
-            self.conn.execute(Cmd) # drop the table if it exists
-            self.conn.commit()
-            self.conn.executescript(sql) # read table into database
-            self.conn.commit()
-        except:
-            raise SessionException('sqlread: '+str(sys.exc_info()[1]))
-
-
 
     def _hostgroups2json(self):
         hostgroups = []
@@ -456,29 +422,20 @@ class Session:
             hostgroup['hosts'].append({ 'id': host, 'alias': hostgroupdata['hosts'].get(host, {}).get('alias', ''), 'servicegroup': hostgroupdata['hosts'].get(host, {}).get('servicegroup', '')})
         return hostgroup
 
-    def _servicegroup2json(self, filter = 'service_pumplad4_ee'):
-        self.conn.row_factory = sqlite3.Row # This enables column access by name: row['column_name']
-        cur=self.conn.cursor()
-        rows={}
-
+    def _servicegroup2json(self, filter):
+        sd = ServiceData(filter).getservicedata()['sta_reg']
         #(svc_name,sta_reg,val_reg,in_unit,out_unit,conv_coef,desc0,desc1,desc2,step,min_len,max_val,grp_value,multiperf,multivalue,multicfg)
-        Cmd="select sta_reg, val_reg, svc_name, out_unit, desc0, desc1, desc2, multiperf, multivalue, multicfg from "+filter #
-        cur.execute(Cmd) #
-        hgdata = {"servicegroup": filter, "services":[] }
-        for row in cur: # service loop
+        hgdata = { "servicegroup": filter, "services": [] }
+        for sta_reg in sd:
             hdata={}
-            sta_reg=row[0]
-            val_reg=row[1]
-            hdata['svc_name']=row[2]
-            unit=row[3]
-            desc=[]
-            desc.append(row[4])
-            desc.append(row[5])
-            desc.append(row[6])
-            multiperf=row[7]
-            multivalue=row[8] # to be shown in the end of desc after colon
+            hdata['svc_name']=sd[sta_reg]['svc_name']
+            val_reg=sd[sta_reg]['val_reg']
+            unit=sd[sta_reg]['out_unit']
+            desc=[ sd[sta_reg]['desc0'], sd[sta_reg]['desc1'], sd[sta_reg]['desc2'] ]
+            multiperf=sd[sta_reg]['multiperf']
+            multivalue=sd[sta_reg]['multivalue'] # to be shown in the end of desc after colon
             try: # igas teenusetabelis ei ole esialgu seda tulpa
-                multicfg=row[9] # configurable
+                multicfg=sd[sta_reg]['multicfg'] # configurable
             except:
                 multicfg=''
 
@@ -540,7 +497,7 @@ class Session:
     def _services2json(self, filter):
         self.state2state(host=filter, age=300)
         self.state2buffer(host=filter, age=300) # one host at the timestamp# age 0 korral koik mis leidub.
-        return self.buffer2json()
+        return self.buffer2json(host=filter)
 
     def sql2json(self, query, filter):
         if query == 'hostgroups':
@@ -569,95 +526,43 @@ class Session:
 
     def reg2key(self,hid,register): # returns key,staTrue,staExists,valExists based on hid,register. do not start transaction or commit her!
         ''' Must be used for every service from every host, to use the correct key and recalculate numbers in values '''
-        cur=self.conn.cursor() # peaks olema soltumatu kursor
-        sta_reg=''
-        val_reg=''
-        staTrue=False
-        staExists=False
-        valExists=False
-        conv_coef=None
+        staTrue = False
+        staExists = False
+        valExists = False
+        conv_coef = None
         key=''
 
         servicetable = ControllerData.get_servicetable(hid)
-        Cmd="select sta_reg, val_reg,conv_coef from "+servicetable+" where sta_reg='"+register+"' or val_reg='"+register+"'"
-        cur.execute(Cmd)
-        for row in cur: # one row
-            #svc_name=row[0]
-            sta_reg=row[0]
-            val_reg=row[1]
-            conv_coef=eval(row[2]) if row[2] != '' else None
+        sd = ServiceData(servicetable).getservicedata()
 
-        if sta_reg !='': # sta_reg in use
-            staExists=True
-            if register == sta_reg:
-                staTrue=True
-            elif register == val_reg:
-                staTrue=False
-            key=val_reg # in most cases
+        if register in sd['val_reg'] and register in sd['sta_reg']:
+            raise SessionException('both val_reg and sta_reg with the same key')
 
-        if val_reg !='': # val_reg exist
-            valExists=True
-            if register == sta_reg:
-                staTrue=True
-            elif register == val_reg:
-                staTrue=False
-            key=val_reg # in most cases
+        if register in sd['sta_reg']:
+            conv_coef = sd['sta_reg'][register].get('conv_coef', None)
+            staExists = True
+            staTrue = True
+            key = register
+            if sd['sta_reg'][register]['val_reg'] != '':
+                valExists = True
+
+        if register in sd['val_reg']:
+            conv_coef = sd['val_reg'][register].get('conv_coef', None)
+            valExists = True
+            staTrue = False
+            key = register
+            if sd['val_reg'][register]['sta_reg'] != '':
+                staExists = True
 
         return { 'key': key, 'staTrue': staTrue, 'staExists': staExists, 'valExists': valExists, 'conv_coef': conv_coef } # '',False,False,False if not defined in servicetable
 
 
-    def init_userdata(self):
-        userdata = NagiosUser(self.user).getuserdata()
-        table = 'ws_hosts'
-
-        ''' data from nagios put into tuple data
-        [{u'saared': {u'alias': u'saared', u'members': {u'00204AB80BF9': u'saared tempa kanal'}}},
-        {u'saared': {}, u'kvv': {u'00204AB80BF9': u'saared tempa kanal'}}}]
-        Also adds servicegroup info from controllers. Does it gets dumped on each addcontroller?
-
-        '''
-        cur=self.conn.cursor()
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd)
-        # ws_hosts(hid,halias,ugid,ugalias,hgid,hgalias,cfg,servicegroup)
-        usergroups = userdata.get('user_groups', {})
-        for gid in usergroups.keys(): # access info usr_group alusel
-            groupdata=usergroups[gid] #
-            #galias=groupdata.get('alias') # seda ei ole esialgu user_group jaoks
-            for hid in groupdata.keys():
-                halias=groupdata.get(hid)
-                Cmd="insert into "+table+"(hid,halias,ugid) values('"+hid+"','"+halias+"','"+gid+"')"
-                #self.cmd=self.cmd+'\n'+Cmd # debug
-                self.conn.execute(Cmd)
-
-        hostgroups = userdata.get('hostgroups', {})
-        for gid in hostgroups.keys(): # hostgroup kuuluvus  - neid voib olla rohkem kui neid millele on ligipaas. where filtreerib valja!
-            groupdata=hostgroups.get(gid) # alias, members{}
-            galias=groupdata.get('alias')
-            members=groupdata.get('members') # hosts
-            for hid in members.keys():
-                servicetable = ControllerData.get_servicetable(hid)
-                Cmd="update "+table+" set hgid='"+gid+"',hgalias='"+galias+"', servicegroup='"+servicetable+"' where hid='"+hid+"'"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd)
-
-        Cmd="select servicegroup from ws_hosts group by servicegroup" # open servicetables for service translations
-        cur.execute(Cmd)
-        servicetables = []
-        for row in cur: # getting all used servicetables into memory
-            servicetable=str(row[0])
-            servicetables.append(str(row[0]))
-        for servicetable in servicetables:
-            self.sqlread('/srv/scada/sqlite/'+servicetable+'.sql')
-
-        # controller and used servicetables must remain accessible in memory
-        self.conn.commit()
-
-
     def state2state(self, host, age = 0): # updating state table in meory with the received udp data
         ''' copies all services for one host into the state copy in memory '''
-        timefrom=0
+        import sqlite3
+        self.conn2 = sqlite3.connect('/srv/scada/sqlite/monitor') # ajutiselt, kuni midagi paremat tekib. state ja newstate tabelid
         cur2=self.conn2.cursor()
+        timefrom=0
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -668,20 +573,12 @@ class Session:
         Cmd2="select mac,register,value,timestamp from state where timestamp+0>"+str(timefrom)+" and mac='"+host+"'"
         cur2.execute(Cmd2)
         self.conn2.commit()
-
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction begin
         for row in cur2:
             try:
-                Cmd="insert into state(mac,register,value,timestamp) values('"+str(row[0])+"','"+str(row[1])+"','"+str(row[2])+"','"+str(row[3])+"')"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd) #
+                StateBuffer.insertdata(host, row[1], { 'value': row[2], 'timestamp': float(row[3]) })
             except:
-                Cmd="UPDATE STATE SET value='"+str(row[2])+"',timestamp='"+str(row[3])+"' WHERE mac='"+row[0]+"' AND register='"+row[1]+"'"
-                #print(Cmd) # debug
-                self.conn.execute(Cmd) #
-        self.conn.commit() # transaction end
-
+                StateBuffer.updatedata(host, row[1], 'value', row[2])
+                StateBuffer.updatedata(host, row[1], 'timestamp', float(row[3]))
 
     def state2buffer(self, host = '00204AA95C56', age = None): # esimene paring voiks olla 5 min vanuste kohta, hiljem vahem. 0 ei piira, annab koik!
         ''' Returns service refresh data as json in case of change or update from one host.
@@ -689,7 +586,6 @@ class Session:
             Not needed after websocket is activated.
         '''
         timefrom=0
-        cur=self.conn.cursor()
         self.ts = round(time.time(),1)
         if age == 0:
             timefrom = 0
@@ -697,24 +593,25 @@ class Session:
             timefrom = self.ts - age
         else: # None korral arvestab eelmise lugemisega
             timefrom= self.ts
-        #  servicebuffer(hid,svc_name,sta_reg,status INT,val_reg,value,timestamp NUMERIC) via conn
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction for servicebuffer
 
-        Cmd="select mac,register,value,timestamp from state left join ws_hosts on state.mac=ws_hosts.hid where timestamp+0>"+str(timefrom)+" and mac='"+host+"'" # saame ainult lubatud hostidest
-        cur.execute(Cmd)
-        #self.conn.commit()
-        for row in cur:
-            hid=row[0]
-            register=row[1]
-            value=row[2]
-            timestamp=row[3]
+        state = StateBuffer.getdata(host)
+        for register in state:
+            if state[register]['timestamp'] <= timefrom:
+                continue
+            hid=host
+            value=state[register]['value']
+            status = 0
+            timestamp=state[register]['timestamp']
             #print('hid,register,value',hid,register,value) # debug
 
             regkey=self.reg2key(hid,register) # returns key,staTrue,staExists,valExists,conv_coef # all but first are True / False
             key=regkey['key']
             if regkey['staTrue'] == True: # status
-                status=int(value) # replace value with status
+                try:
+                    status=int(value) # replace value with status
+                except:
+                    # FIXME this should not happen!
+                    print("ERROR: value=" + str(value))
                 if regkey['valExists'] == False:
                     value=str(status)
 
@@ -725,80 +622,50 @@ class Session:
             conv_coef=regkey['conv_coef']
             if key != '': # service defined in serviceregister
                 try:
-                    Cmd="insert into servicebuffer(hid,key,status,value,conv_coef,timestamp) values('"+hid+"','"+key+"','"+str(status)+"','"+value+"','"+str(conv_coef)+"','"+str(timestamp)+"')" # orig timestamp
-                    #print(Cmd) # debug
-                    self.conn.execute(Cmd)
+                    ServiceBuffer.insertdata(hid, key, { 'status': status, 'value': value, 'conv_coef': conv_coef, 'timestamp': timestamp})
+
                 except:
                     #traceback.print_exc() # debug insert
                     #return 2 # debug
                     if regkey['staTrue'] == True: # status
-                        Cmd="update servicebuffer set status='"+str(status)+"' where key='"+key+"' and hid='"+hid+"'" # no change to value
+                        ServiceBuffer.updatedata(hid, key, 'status', status)
                     else: # must be value
-                        Cmd="update servicebuffer set value='"+value+"' where key='"+key+"' and hid='"+hid+"'"
-                    self.conn.execute(Cmd)
-                #print(Cmd) # debug, what was selected
+                        ServiceBuffer.updatedata(hid, key, 'value', value)
 
-        self.conn.commit() # servicebuffer transaction end
         self.ts_last = self.ts
         return 0
 
 
 
 
-    def buffer2json(self):
+    def buffer2json(self, host):
         '''  Returns json for service refresh in websocket client '''
-        #servicebuffer(hid,key,status INT,value,timestamp NUMERIC)
-        cur=self.conn.cursor()
-        cur2=self.conn.cursor()
-        Cmd="BEGIN IMMEDIATE TRANSACTION"
-        self.conn.execute(Cmd) # transaction for servicebuffer
-        Cmd="select hid from servicebuffer where status IS NOT NULL and value<>'' group by hid" # wait for for update
-        cur.execute(Cmd)
-        hid=''
-        hid=''
-        data=[] # tegelikult 1 host korraga
         hdata={}
-        for row in cur: # hosts loop
-            hid=row[0] # host id
-            hdata={}
-            hdata['host']=hid
-            hdata['services']=[]
-            hdata['timestamp']=self.ts # current time, not the time from hosts
-            # servicebuffer(hid,svc_name,status INT,value,timestamp NUMERIC);
-            Cmd="select * from servicebuffer where status IS NOT NULL and value<>'' and hid='"+hid+"'" #
-            cur2.execute(Cmd)
-            for row2 in cur2: # services loop
-                key=row2[1]
-                status=row2[2] # int
-                value=row2[3] #
-                conv_coef=row2[4] # num or none
-                sdata={}
-                sdata['key']=key
-                sdata['status']=status
-                sdata['value']=[]
-                if key[-1:] == 'W':
-                    valmems=value.split(' ') # only if key ends with W
-                else:
-                    valmems=[value] # single value
+        hdata['host'] = host
+        hdata['services'] = []
+        hdata['timestamp'] = round(time.time(),1) # current time, not the time from hosts
+        buffdata = ServiceBuffer.getdata(host)
+        for key in buffdata:
+            value = buffdata[key]['value']
+            conv_coef = buffdata[key]['conv_coef']
+            sdata={}
+            sdata['key'] = key
+            sdata['status'] =buffdata[key]['status']
+            sdata['value']=[]
+            if key[-1:] == 'W':
+                valmems=value.split(' ') # only if key ends with W
+            else:
+                valmems=[value] # single value
 
-                for mnum in range(len(valmems)): # value member loop
-                    # {}
-                    #valmember['member']=mnum+1
-                    #valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
-                    #sdata['value'].append(valmember) # member ready
-                    sdata['value'].append(self.stringvalue2scale(valmems[mnum],conv_coef))
-                hdata['services'].append(sdata) # service ready
-            #print('hdata: ',hdata) # debug
-            data.append(hdata) # host ready
-
-
-        Cmd="delete from servicebuffer where status IS NOT NULL and value<>''"
-        self.conn.execute(Cmd)
-        self.conn.commit()
-        if len(data) == 0:
-            return {}
-        #print data # debug
-        return data[0]
+            for mnum in range(len(valmems)): # value member loop
+                # {}
+                #valmember['member']=mnum+1
+                #valmember['val']=self.stringvalue2scale(valmems[mnum],conv_coef) # scale conversion and possible hex float decoding
+                #sdata['value'].append(valmember) # member ready
+                sdata['value'].append(self.stringvalue2scale(valmems[mnum],conv_coef))
+            hdata['services'].append(sdata) # service ready
+        ServiceBuffer.deletenotnull(host)
+        return hdata
 
 
     def stringvalue2scale(self, input = '', coeff = None):
@@ -904,9 +771,6 @@ if __name__ == '__main__':
         else:
             raise SessionException('unknown query')
 
-        # get user rights relative to the hosts
-        # fill ws_hosts table and creates copies of servicetables in the memory
-        s.init_userdata()
 
         # actual query execution
         result = s.sql2json(query, filter)
