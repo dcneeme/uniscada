@@ -933,5 +933,7 @@ if __name__ == '__main__':
         print(http_status)
         print("Content-type: application/json; charset=utf-8")
         print("Access-Control-Allow-Origin: *")
+        if USER != None:
+            print("X-Username: " + USER)
         print()
         print(json.dumps(http_data, indent = 4))
