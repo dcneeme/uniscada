@@ -3,6 +3,8 @@
 class UDPReader(object): # object on millegiparast vajalik
     def __init__(self, addr, port, handler):
         import socket
+        import tornado.ioloop
+        import functools # from functools import partial
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setblocking(False)
         self._sock.bind((addr, port))

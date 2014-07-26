@@ -28,7 +28,7 @@ from sdpbuffer import *
 SQLDIR='/srv/scada/uniscada/sqlite/' #  "/data/scada/sqlite" # testimiseks itvilla serveris
 tables=[] # ['state','newstate','controller','service_*'] # to be added
 addr='0.0.0.0'
-port = 44445 # testimiseks 44444, pane parast 44445
+port = 44441 # testimiseks 44444, pane parast 44445
 
 if len(sys.argv)>1: # ilmselt ka port antud siis
     port=int(sys.argv[1]) # muidu jaab default value 44445
