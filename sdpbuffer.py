@@ -19,7 +19,7 @@ import glob
 class SDPBuffer: # for the messages in UniSCADA service description protocol
     def __init__(self, SQLDIR, tables): # [multiple tables as tuple]
         self.sqldir=SQLDIR
-        conn = sqlite3.connect(':memory:')
+        self.conn = sqlite3.connect(':memory:')
         print('sdpbuffer: created sqlite connection')
         for table in tables:
             if '*' in table:
@@ -47,10 +47,10 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         Cmd='drop table if exists '+table
         try:
-            conn.execute(Cmd) # drop the table if it exists
-            conn.commit()
-            conn.executescript(sql) # read table into database
-            conn.commit()
+            self.conn.execute(Cmd) # drop the table if it exists
+            self.conn.commit()
+            self.conn.executescript(sql) # read table into database
+            self.conn.commit()
             msg='sqlread: successfully recreated table '+table
             print(msg)
             #udp.syslog(msg)
@@ -68,9 +68,9 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         ''' reads and returns he content of the table '''
         output=[]
         Cmd ="SELECT "+column+" from "+table
-        cur = conn.cursor()
+        cur = self.conn.cursor()
         cur.execute(Cmd)
-        conn.commit()
+        self.conn.commit()
         for row in cur:
             output.append(row) 
         return output
@@ -82,7 +82,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         print(msg)
         try:
             with open(self.sqldir+table+'.sql', 'w') as f:
-                for line in conn.iterdump(): # see dumbib koik kokku!
+                for line in self.conn.iterdump(): # see dumbib koik kokku!
                     if table in line: # needed for one table only! without that dumps all!
                         f.write('%s\n' % line)
             return 0
@@ -108,7 +108,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             #print('get_value() row:', row) # debug
             value.append(row[0])
         
-        conn.commit()
+        self.conn.commit()
         return value # tuple from member values    
         
     def udp2state(self,data): # executes also statemodify to update the state table
@@ -144,7 +144,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             Cmd="INSERT INTO STATE (register,mac,value,timestamp,due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
             #print Cmd
-            conn.execute(Cmd) # insert, kursorit pole vaja
+            self.conn.execute(Cmd) # insert, kursorit pole vaja
                     
         except:   # UPDATE the existing state for id
             Cmd="UPDATE STATE SET value='"+str(value)+"',timestamp='"+str(self.ts)+"',due_time='"+str(DUE_TIME)+"' \
@@ -152,7 +152,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             #print Cmd
             
             try:
-                conn.execute(Cmd) # update, kursorit pole vaja
+                self.conn.execute(Cmd) # update, kursorit pole vaja
                 #print 'state update done for mac',id,'register',locregister # ajutine
                 
             except:
