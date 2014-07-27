@@ -191,7 +191,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             traceback.print_exc() # debug
             return 1
 
-        
+
     def message4host(self, id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
         ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
 
