@@ -13,13 +13,15 @@ import sys
 import traceback
 import sqlite3
 import glob
-
+import time
 
     
 class SDPBuffer: # for the messages in UniSCADA service description protocol
     def __init__(self, SQLDIR, tables): # [multiple tables as tuple]
         self.sqldir=SQLDIR
         self.conn = sqlite3.connect(':memory:')
+        self.cursor = self.conn.cursor
+        self.ts=time.time() # needs to be refreshed on every udp2state()
         print('sdpbuffer: created sqlite connection')
         for table in tables:
             if '*' in table:
@@ -96,7 +98,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
     def get_column(self, table, column, like=''): # returns raw,value,lo,hi,status values based on service name and member number
         ''' Returns member values as tuple from channel table (ai, di, counter) based on service name '''
-        cur=conn.cursor()
+        cur=self.conn.cursor()
         if like == '':
             Cmd="select "+column+" from "+table+" order by "+column
         else:
@@ -111,9 +113,11 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         self.conn.commit()
         return value # tuple from member values    
         
-    def udp2state(self,data): # executes also statemodify to update the state table
+
+    def udp2state(self, addr, data): # executes also statemodify to update the state table
         ress=0
         res=0
+        self.ts=time.time()
         if "id:" in data: # first check based on host id existence in the received message, must exist to be valid message!
             lines=data.splitlines()
             #print('received lines count',len(lines)) # debug
@@ -125,20 +129,25 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                     register = line[0] # setup reg name
                     value = line[1] # setup reg value
                     #print('received from controller',id,'key:value',register,value) # debug
-                    res=self.statemodify(id,register,value)
+                    res = self.controllermodify(id, addr)
+                    if res != 0:
+                        print('unknown host id',id,'in the message from',addr)
+                        return res # no further actions for this illegal host
+                        
+                    res = self.statemodify(id, register, value) # only if host id existed in controller
                     if res == 0:
-                        print('statemodify done for',id,register,value)
+                        print('statemodify done for', id, register, value)
                     else:
-                        print('statemodify FAILED for',id,register,value)
-                ress+=res
+                        print('statemodify FAILED for', id, register, value)
+                ress += res
         else:
-            print('invalid datagram, no id found in',data)
-            ress+=1
+            print('invalid datagram, no id found in', data)
+            ress += 1
         return ress
         
     
     def statemodify(self, id, register, value): # received key:value to state table
-        ''' received key:value to state table '''
+        ''' Received key:value to state table. This is used by udp2state() '''
         DUE_TIME=self.ts+5 # min pikkus enne kordusi, tegelikult pole vist vaja
         try: # new state for this id
             Cmd="INSERT INTO STATE (register,mac,value,timestamp,due_time) VALUES \
@@ -160,5 +169,91 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                 return 1 # kui see ka ei onnestu, on mingi jama
 
         return 0 # DUE_TIME  state_modify lopp
+        
+        
+    def controllermodify(self, id, addr): # socket data refresh in controller table if changed
+        ''' Refreshes the socket data in the controller table for a host. 
+            Auto adding (new unknown) records for testing could be possible. Socket changes to be detected? 
+        '''
+        Cmd="UPDATE controller SET socket='"+str(addr[0])+","+str(addr[1])+"',socket_ts='"+str(self.ts)+"' \
+            WHERE mac='"+id+"' and socket !='" +str(addr[0])+","+str(addr[1])+"'" # keeps the last change time 
+            
+        try: # new state for this id
+            self.conn.execute(Cmd) # insert, kursorit pole vaja
+            self.conn.commit()
+            return 0        
+        except:   # no such id 
+            print(Cmd) # debug
+            traceback.print_exc() # debug
+            return 1
 
         
+    def message2host(id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
+        ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
+        
+        Cmd="BEGIN TRANSACTION" # 
+        self.conn.execute(Cmd) # tagasi -"-
+        
+        Cmd="select newstate.register,newstate.value from newstate LEFT join state on newstate.mac = state.mac and \
+        newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
+        (select register from commands where commands.register = newstate.register)) and  \
+        (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10"
+
+        #print Cmd
+        self.cursor.execute(Cmd)  # read from newstate (mailbox) table
+        
+        
+        if inn == "":
+            sdata = "id:" + id + "\n" # alustame vastust id-ga
+        else:
+            sdata = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
+        
+        answerlines = 0
+        for row in cursor:
+            #print "select for sending to controller newstate left join state row",row
+            register=row[0]
+            value=row[1]
+            data=data + str(register) + ":" + str(value) + "\n" # cmd or setup message to host in addition to id and inn
+            answerlines = answerlines + 1
+        
+        #retrycount refresh, not needed if no cmd / setup to send
+        if answerlines > 0:
+            # retrycount in newstate ########
+            # kui on ridasid mida saata, siis incremendime nendes ridades retrycount atribuuti newstate
+            # tabelis. 
+            # neeme feb 2013 nyyd saadetakse ka ilma kontrolleripoolse poordumiseta! 
+            # tekkiski probleem, et saatis korduvalt enne kui retrycount uuenes. transaction appi? 
+            
+            # retrycounti pole vaja uuendada, kui midagi ei saadeta.
+            Cmd ="update newstate \
+            SET retrycount = ( \
+            select CASE WHEN  ( select max(retrycount) from newstate where mac='" + str(id) + "' \
+            and  mac||register in ( \
+            select newstate.mac||newstate.register from newstate LEFT join state on newstate.mac = state.mac and \
+            newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
+            (select register from commands where commands.register = newstate.register)) and \
+            (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10 \
+            ) \
+            ) is null  THEN 1 ELSE \
+            ( select max(retrycount)+1 from newstate where mac='" + str(id) + "' \
+            and mac||register in ( \
+            select newstate.mac||newstate.register from newstate LEFT join state on newstate.mac = state.mac and \
+            newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
+            (select register from commands where commands.register = newstate.register)) and \
+            (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10 \
+            ) \
+            )  END \
+            ) \
+            where mac||register in ( \
+            select newstate.mac||newstate.register from newstate LEFT join state on newstate.mac = state.mac and \
+            newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
+            (select register from commands where commands.register = newstate.register)) and  \
+            (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10 \
+            ) ;"
+
+            self.conn.execute(Cmd)  
+            
+        self.conn.commit() # end transaction
+
+        print("---answer or command to the host ",id,addr,data) # debug
+        return addr,data

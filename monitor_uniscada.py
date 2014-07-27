@@ -26,37 +26,45 @@ from sdpbuffer import *
 
 # Set the socket parameters for communication with the site controllers
 SQLDIR='/srv/scada/uniscada/sqlite/' #  "/data/scada/sqlite" # testimiseks itvilla serveris
-tables=[] # ['state','newstate','controller','service_*'] # to be added
+tables=['state','newstate','controller','service_*'] # to be added
 addr='0.0.0.0'
-port = 44441 # testimiseks 44444, pane parast 44445
+port = 44444 # testimiseks 44444, pane parast 44445
+interval = 1
 
-if len(sys.argv)>1: # ilmselt ka port antud siis
-    port=int(sys.argv[1]) # muidu jaab default value 44445
-    print 'udp port set to',port
+if len(sys.argv)>1: # port as parameter given
+    port=int(sys.argv[1]) # otherwise default value set above will be used
+    print('UDP port to listen set to', port)
     sys.stdout.flush()
-    time.sleep(1)
-
+    
     
 class MonitorUniscada:
-    def __init__(self, addr, port, SQLDIR, tables):
+    def __init__(self, addr, port, SQLDIR, tables, interval = 1):
+        ''' 
+        Listens incoming UDP from hosts with id, in SDP format, stores into sql buffer state. 
+        Sends ACK and possible commands or setup values back to the host (assuming the host 
+        socket has not been changed since last received UDP message from that host).
+        '''
+        
         self.addr = addr
         self.port = port
         self.SQLDIR = SQLDIR
         self.tables = tables # tuple
-        self.b = SDPBuffer(SQLDIR, tables)
-        self.u = UDPReader(self.addr, self.port, self.b.udp2state) # addr, port, handler
+        self.b = SDPBuffer(SQLDIR, tables) # data into state table and sending out from newstate 
+        self.u = UDPReader(self.addr, self.port, self.b.udp2state) # incoming data listening
         self.ioloop = tornado.ioloop.IOLoop.instance()
-        
+        self.interval = interval
     
-    def sync_tasks(self,delay): # regular checks or tasks
+    def sync_tasks(self,interval = 1): # regular checks or tasks
         print("executing sync tasks...")
-        # puit here tasks to be executed in 1 s interval
+        # put here tasks to be executed in 1 s interval
+        print(self.b.print_table('newstate')) # waiting data to be sent
         
         print("UPD processing until next sync...")
-        self.ioloop.add_timeout(datetime.timedelta(seconds=delay), sync_tasks)
+        self.ioloop.add_timeout(datetime.timedelta(seconds=interval), self.sync_tasks)
 
         
     def start(self):
+        self.sync_tasks(self.interval)
         self.ioloop.start()
     
     
@@ -64,7 +72,7 @@ class MonitorUniscada:
 
 if __name__ == '__main__':
     
-    m=MonitorUniscada(addr, port, SQLDIR, tables)
+    m=MonitorUniscada(addr, port, SQLDIR, tables, interval)
     m.start()
     
     
