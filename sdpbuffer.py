@@ -20,7 +20,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
     def __init__(self, SQLDIR, tables): # [multiple tables as tuple]
         self.sqldir=SQLDIR
         self.conn = sqlite3.connect(':memory:')
-        self.cursor = self.conn.cursor
+        self.cursor = self.conn.cursor()
         self.ts=time.time() # needs to be refreshed on every udp2state()
         print('sdpbuffer: created sqlite connection')
         for table in tables:
@@ -122,24 +122,28 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             lines=data.splitlines()
             #print('received lines count',len(lines)) # debug
             id=data[data.find("id:")+3:].splitlines()[0]
+            res = self.controllermodify(id, addr) # update socket data if changed
+            if res != 0:
+                print('unknown host id',id,'in the message from',addr)
+                return res # no further actions for this illegal host
+            
+            inn=data[data.find("in:")+3:].splitlines()[0] # optional datagram id
             for i in range(len(lines)): # looking into every member (line) of incoming message
                 #print('line',i,lines[i]) # debug
-                if ":" in lines[i] and not 'id:' in lines[i]:
+                if ":" in lines[i] and not 'id:' in lines[i] and not 'in:' in lines[i]:
                     line = lines[i].split(':') # tuple
                     register = line[0] # setup reg name
                     value = line[1] # setup reg value
                     #print('received from controller',id,'key:value',register,value) # debug
-                    res = self.controllermodify(id, addr)
-                    if res != 0:
-                        print('unknown host id',id,'in the message from',addr)
-                        return res # no further actions for this illegal host
-                        
+                       
                     res = self.statemodify(id, register, value) # only if host id existed in controller
                     if res == 0:
                         print('statemodify done for', id, register, value)
                     else:
                         print('statemodify FAILED for', id, register, value)
                 ress += res
+            sendmessage = self.message4host(id, addr, inn) # ack, possibly with waiting cmd/setup
+            
         else:
             print('invalid datagram, no id found in', data)
             ress += 1
@@ -188,9 +192,10 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 1
 
         
-    def message2host(id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
+    def message4host(self, id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
         ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
         
+        #cur = self.conn.cursor()
         Cmd="BEGIN TRANSACTION" # 
         self.conn.execute(Cmd) # tagasi -"-
         
@@ -200,16 +205,15 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10"
 
         #print Cmd
-        self.cursor.execute(Cmd)  # read from newstate (mailbox) table
-        
+        self.cursor.execute(Cmd)  # read from newstate table
         
         if inn == "":
-            sdata = "id:" + id + "\n" # alustame vastust id-ga
+            data = "id:" + id + "\n" # alustame vastust id-ga
         else:
-            sdata = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
+            data = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
         
         answerlines = 0
-        for row in cursor:
+        for row in self.cursor:
             #print "select for sending to controller newstate left join state row",row
             register=row[0]
             value=row[1]
@@ -257,3 +261,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         print("---answer or command to the host ",id,addr,data) # debug
         return addr,data
+        
+        
+    #def message2host(self, addr, data, sender): # actual send based on eval(self.sender)
+        #exec(sender(addr,data))
+        

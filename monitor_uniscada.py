@@ -26,7 +26,7 @@ from sdpbuffer import *
 
 # Set the socket parameters for communication with the site controllers
 SQLDIR='/srv/scada/uniscada/sqlite/' #  "/data/scada/sqlite" # testimiseks itvilla serveris
-tables=['state','newstate','controller','service_*'] # to be added
+tables=['state','newstate','controller','commands','service_*'] # to be added
 addr='0.0.0.0'
 port = 44444 # testimiseks 44444, pane parast 44445
 interval = 1
@@ -57,7 +57,11 @@ class MonitorUniscada:
     def sync_tasks(self,interval = 1): # regular checks or tasks
         print("executing sync tasks...")
         # put here tasks to be executed in 1 s interval
-        print(self.b.print_table('newstate')) # waiting data to be sent
+        sendqueue=(self.b.print_table('newstate')) # waiting data to be sent
+        print('newstate queue',sendqueue)
+        #if len(sendqueue) > 0:
+            #sendstring=b.message2host()
+            #u.udpsend(senstring)
         
         print("UPD processing until next sync...")
         self.ioloop.add_timeout(datetime.timedelta(seconds=interval), self.sync_tasks)
