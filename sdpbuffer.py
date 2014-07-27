@@ -114,7 +114,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return value # tuple from member values
 
 
-    def udp2state(self, addr, data): # executes also statemodify to update the state table
+    def udp2state(self, udpreader, addr, data): # executes also statemodify to update the state table
         ress=0
         res=0
         self.ts=time.time()
@@ -263,5 +263,5 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return addr,data
 
 
-    #def message2host(self, addr, data, sender): # actual send based on eval(self.sender)
-        #exec(sender(addr,data))
+    def message2host(self, udpreader, addr, data): # actual send based on eval(self.sender)
+        udpreader.udpsend(addr,data)

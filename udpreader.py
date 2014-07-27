@@ -29,7 +29,7 @@ class UDPReader(object): # object on millegiparast vajalik
         #debugdata = { "from": { "ip": addr[0], "port": addr[1] }, "msg": str(data) }
         debugdata = { "from": addr, "msg": str(data) }
         print("got UDP " + str(debugdata))
-        self.handler(addr, data)
+        self.handler(self, addr, data)
 
 
     def udpsend(self, addr, sendstring = ''): # actual udp sending. give message as parameter
