@@ -22,7 +22,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         self.sqldir=SQLDIR
         self.conn = sqlite3.connect(':memory:')
         self.cursor = self.conn.cursor()
-        self.ts=time.time() # needs to be refreshed on every udp2state()
+        self.ts=time.time() # needs to be refreshed on every comm2state()
         print('sdpbuffer: created sqlite connection')
         for table in tables:
             if '*' in table:
@@ -115,9 +115,10 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return value # tuple from member values
 
 
-    def udp2state(self, udpreader, addr, data): # executes also statemodify to update the state table
+    def comm2state(self, udpreader, addr, data): # executes also statemodify to update the state table
         ress=0
         res=0
+        valueback = ''
         self.ts=time.time()
         if "id:" in data: # first check based on host id existence in the received message, must exist to be valid message!
             lines=data.splitlines()
@@ -129,21 +130,33 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                 return res # no further actions for this illegal host
 
             inn=data[data.find("in:")+3:].splitlines()[0] # optional datagram id
+            Cmd="BEGIN TRANSACTION" #
+            self.conn.execute(Cmd)
             for i in range(len(lines)): # looking into every member (line) of incoming message
                 #print('line',i,lines[i]) # debug
                 if ":" in lines[i] and not 'id:' in lines[i] and not 'in:' in lines[i]:
                     line = lines[i].split(':') # tuple
                     register = line[0] # setup reg name
                     value = line[1] # setup reg value
-                    #print('received from controller',id,'key:value',register,value) # debug
-
-                    res = self.statemodify(id, register, value) # only if host id existed in controller
-                    if res == 0:
-                        print('statemodify done for', id, register, value)
+                    print('received from controller',id,'key:value',register,value) # debug
+                    if '?' in value: # return the buffered value from state
+                        cur = self.conn.cursor() # local!
+                        Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
+                        cur.execute(Cmd)
+                        for row in cur:
+                            valueback = row[0]
+                        print('going to answer to/with', id, register, valueback) # debug
+                        res = self.newstatemodify(id,register,valueback)
+                    
                     else:
-                        print('statemodify FAILED for', id, register, value)
+                        res = self.statemodify(id, register, value) # only if host id existed in controller
+                        if res == 0:
+                            print('statemodify done for', id, register, value)
+                        else:
+                            print('statemodify FAILED for', id, register, value)
                 ress += res
-            sendmessage = self.message4host(id, addr, inn) # ack, possibly with waiting cmd/setup
+            self.conn.commit() # transaction end
+            sendmessage = self.message4host(id, inn) # ack, w newstate
             self.message2host(self.comm, addr, sendmessage)
         else:
             print('invalid datagram, no id found in', data)
@@ -152,30 +165,44 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
 
     def statemodify(self, id, register, value): # received key:value to state table
-        ''' Received key:value to state table. This is used by udp2state() '''
+        ''' Received key:value to state table. This is used by comm2state() '''
         DUE_TIME=self.ts+5 # min pikkus enne kordusi, tegelikult pole vist vaja
-        try: # new state for this id
-            Cmd="INSERT INTO STATE (register,mac,value,timestamp,due_time) VALUES \
+        try: 
+            Cmd="INSERT INTO STATE (register, mac, value, timestamp, due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
-            #print Cmd
+            print Cmd # debug
             self.conn.execute(Cmd) # insert, kursorit pole vaja
 
-        except:   # UPDATE the existing state for id
+        except:   # UPDATE the existing record
             Cmd="UPDATE STATE SET value='"+str(value)+"',timestamp='"+str(self.ts)+"',due_time='"+str(DUE_TIME)+"' \
             WHERE mac='"+id+"' AND register='"+register+"'"
-            #print Cmd
-
+            print Cmd # debug
             try:
                 self.conn.execute(Cmd) # update, kursorit pole vaja
-                #print 'state update done for mac',id,'register',locregister # ajutine
-
             except:
                 traceback.print_exc()
-                return 1 # kui see ka ei onnestu, on mingi jama
+                return 1 
+        return 0
 
-        return 0 # DUE_TIME  state_modify lopp
 
+    def newstatemodify(self, id, register, value): # received key:value to newstate table
+        ''' Commands and setup values to by pairs to newstate table, to be sent regularly '''
+        if value == '' or value == None:
+            print('no value for newstate, exiting newstatemodify')
+            return 1
+            
+        try: 
+            Cmd="INSERT INTO newstate(register,mac,value,timestamp) VALUES \
+            ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"')"
+            print Cmd  # debug
+            self.conn.execute(Cmd) # insert, kursorit pole vaja
+            return 0
 
+        except:   # no updates, insert only
+            print('newstatemodify could not add to newstate', id, register, value)
+            return 1 
+   
+   
     def controllermodify(self, id, addr): # socket data refresh in controller table if changed
         ''' Refreshes the socket data in the controller table for a host.
             Auto adding (new unknown) records for testing could be possible. Socket changes to be detected?
@@ -193,12 +220,12 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 1
 
 
-    def message4host(self, id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
+    def message4host(self, id, inn = 0): # for one host at the time. inn = msg id to ack, skip for commands
         ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
 
         #cur = self.conn.cursor()
         Cmd="BEGIN TRANSACTION" #
-        self.conn.execute(Cmd) # tagasi -"-
+        self.conn.execute(Cmd)
 
         Cmd="select newstate.register,newstate.value from newstate LEFT join state on newstate.mac = state.mac and \
         newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
@@ -254,7 +281,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         self.conn.commit() # end transaction
 
-        print("---answer or command to the host ", id, addr, data) # debug
+        print("---answer or command to the host ", id, data) # debug
         return data
 
 
