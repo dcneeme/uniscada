@@ -58,8 +58,11 @@ class MonitorUniscada:
     def sync_tasks(self): # regular checks or tasks
         print("executing sync tasks...")
         # put here tasks to be executed in 1 s interval
-        sendqueue=(self.b.print_table('state')) # waiting data to be sent
-        print('state content',sendqueue) # debug
+        # dump tables for example, delete some records etc
+        
+        print('state',self.b.print_table('state')) # debug
+        print('newstate',self.b.print_table('newstate')) # debug
+        
         #if len(sendqueue) > 0:
             #sendstring=b.message2host()
             #u.udpsend(senstring)
