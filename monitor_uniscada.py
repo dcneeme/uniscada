@@ -21,7 +21,7 @@ import string
 import tornado.ioloop
 import functools
 
-from udpreader import *
+from udpcomm import *
 from sdpbuffer import *
 
 # Set the socket parameters for communication with the site controllers
@@ -50,7 +50,8 @@ class MonitorUniscada:
         self.SQLDIR = SQLDIR
         self.tables = tables # tuple
         self.b = SDPBuffer(SQLDIR, tables) # data into state table and sending out from newstate
-        self.u = UDPReader(self.addr, self.port, self.b.udp2state) # incoming data listening
+        self.u = UDPComm(self.addr, self.port, self.b.udp2state) # incoming data listening
+        self.b.setcomm(self.u)
         self.ioloop = tornado.ioloop.IOLoop.instance()
         self.interval = interval
 

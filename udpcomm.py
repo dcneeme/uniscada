@@ -1,6 +1,7 @@
 # listen and forward UDP messages
-
-class UDPReader(object): # object on millegiparast vajalik
+import traceback
+        
+class UDPComm(object): # object on millegiparast vajalik
     def __init__(self, addr, port, handler):
         import socket
         import tornado.ioloop
@@ -32,14 +33,14 @@ class UDPReader(object): # object on millegiparast vajalik
         self.handler(self, addr, data)
 
 
-    def udpsend(self, addr, sendstring = ''): # actual udp sending. give message as parameter
+    def send(self, addr, sendstring = ''): # actual udp sending. give message as parameter
         ''' Sends UDP data immediately, adding self.inum if >0. '''
         if sendstring == '': # nothing to send
-            print('udpsend(): nothing to send!')
+            print('send(): nothing to send!')
             return 1
-
+        print('send going to send to', addr, sendstring) # debug
         try:
-            sendlen=self.UDPSock.sendto(sendstring.encode('utf-8'), addr) # tagastab saadetud baitide arvu
+            sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # tagastab saadetud baitide arvu
             msg='sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' ')   # debug show as one line
             print(msg)
             return sendlen
@@ -50,4 +51,4 @@ class UDPReader(object): # object on millegiparast vajalik
 # #############################################
 
 if __name__ == '__main__':
-    UDPReader(self.addr, self.port, self.handler)
+    UDPComm(self.addr, self.port, self.handler)

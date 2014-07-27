@@ -17,7 +17,8 @@ import time
 
 
 class SDPBuffer: # for the messages in UniSCADA service description protocol
-    def __init__(self, SQLDIR, tables): # [multiple tables as tuple]
+    def __init__(self, SQLDIR, tables, comm = None): # [multiple tables as tuple]
+        self.comm = comm # from / to communication interface towards site controllers
         self.sqldir=SQLDIR
         self.conn = sqlite3.connect(':memory:')
         self.cursor = self.conn.cursor()
@@ -143,7 +144,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                         print('statemodify FAILED for', id, register, value)
                 ress += res
             sendmessage = self.message4host(id, addr, inn) # ack, possibly with waiting cmd/setup
-
+            self.message2host(self.comm, addr, sendmessage)
         else:
             print('invalid datagram, no id found in', data)
             ress += 1
@@ -222,13 +223,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         #retrycount refresh, not needed if no cmd / setup to send
         if answerlines > 0:
-            # retrycount in newstate ########
-            # kui on ridasid mida saata, siis incremendime nendes ridades retrycount atribuuti newstate
-            # tabelis.
-            # neeme feb 2013 nyyd saadetakse ka ilma kontrolleripoolse poordumiseta!
-            # tekkiski probleem, et saatis korduvalt enne kui retrycount uuenes. transaction appi?
-
-            # retrycounti pole vaja uuendada, kui midagi ei saadeta.
+            # retrycount must be updated
             Cmd ="update newstate \
             SET retrycount = ( \
             select CASE WHEN  ( select max(retrycount) from newstate where mac='" + str(id) + "' \
@@ -259,9 +254,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         self.conn.commit() # end transaction
 
-        print("---answer or command to the host ",id,addr,data) # debug
-        return addr,data
+        print("---answer or command to the host ", id, addr, data) # debug
+        return data
 
 
-    def message2host(self, udpreader, addr, data): # actual send based on eval(self.sender)
-        udpreader.udpsend(addr,data)
+    def message2host(self, comm, addr, data): # actual send based on eval(self.sender)
+        comm.send(addr,data)
+        
+
+    def setcomm(self, comm): # cannot set it in init, unknow at this time
+        self.comm =  comm
