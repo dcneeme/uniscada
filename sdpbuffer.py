@@ -1,11 +1,11 @@
 #sdpbuffer.py
-''' Buffer to store messages in Uniscada Service Description Protocol 
-    (key:value pairs on separate lines, one pair in the datagaram must contain id:<host_id>, 
+''' Buffer to store messages in Uniscada Service Description Protocol
+    (key:value pairs on separate lines, one pair in the datagaram must contain id:<host_id>,
     keys in a datagram are unique and represent either status or value(s) of a service
-    or multiple services,related to the same site controller (host). 
+    or multiple services,related to the same site controller (host).
     Key for status ends with S, value contain one number (status) from 0 to 2.
-    Key for value is similar to status key with last character replaces with V 
-    (single numerical value or string) or W (multiple space-separated numerical values). 
+    Key for value is similar to status key with last character replaces with V
+    (single numerical value or string) or W (multiple space-separated numerical values).
     Each key-value pair ends with line feed (\n).
  '''
 
@@ -15,7 +15,7 @@ import sqlite3
 import glob
 import time
 
-    
+
 class SDPBuffer: # for the messages in UniSCADA service description protocol
     def __init__(self, SQLDIR, tables): # [multiple tables as tuple]
         self.sqldir=SQLDIR
@@ -31,7 +31,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             else:
                 #print('single table',table) # debug
                 self.sqlread(table)
-                
+
 
     def sqlread(self, table): # drops table and reads from file table.sql that must exist
         sql=''
@@ -74,7 +74,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         cur.execute(Cmd)
         self.conn.commit()
         for row in cur:
-            output.append(row) 
+            output.append(row)
         return output
 
 
@@ -109,10 +109,10 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         for row in cur: # one row per member
             #print('get_value() row:', row) # debug
             value.append(row[0])
-        
+
         self.conn.commit()
-        return value # tuple from member values    
-        
+        return value # tuple from member values
+
 
     def udp2state(self, addr, data): # executes also statemodify to update the state table
         ress=0
@@ -126,7 +126,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             if res != 0:
                 print('unknown host id',id,'in the message from',addr)
                 return res # no further actions for this illegal host
-            
+
             inn=data[data.find("in:")+3:].splitlines()[0] # optional datagram id
             for i in range(len(lines)): # looking into every member (line) of incoming message
                 #print('line',i,lines[i]) # debug
@@ -135,7 +135,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                     register = line[0] # setup reg name
                     value = line[1] # setup reg value
                     #print('received from controller',id,'key:value',register,value) # debug
-                       
+
                     res = self.statemodify(id, register, value) # only if host id existed in controller
                     if res == 0:
                         print('statemodify done for', id, register, value)
@@ -143,13 +143,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                         print('statemodify FAILED for', id, register, value)
                 ress += res
             sendmessage = self.message4host(id, addr, inn) # ack, possibly with waiting cmd/setup
-            
+
         else:
             print('invalid datagram, no id found in', data)
             ress += 1
         return ress
-        
-    
+
+
     def statemodify(self, id, register, value): # received key:value to state table
         ''' Received key:value to state table. This is used by udp2state() '''
         DUE_TIME=self.ts+5 # min pikkus enne kordusi, tegelikult pole vist vaja
@@ -158,35 +158,35 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
             #print Cmd
             self.conn.execute(Cmd) # insert, kursorit pole vaja
-                    
+
         except:   # UPDATE the existing state for id
             Cmd="UPDATE STATE SET value='"+str(value)+"',timestamp='"+str(self.ts)+"',due_time='"+str(DUE_TIME)+"' \
             WHERE mac='"+id+"' AND register='"+register+"'"
             #print Cmd
-            
+
             try:
                 self.conn.execute(Cmd) # update, kursorit pole vaja
                 #print 'state update done for mac',id,'register',locregister # ajutine
-                
+
             except:
                 traceback.print_exc()
                 return 1 # kui see ka ei onnestu, on mingi jama
 
         return 0 # DUE_TIME  state_modify lopp
-        
-        
+
+
     def controllermodify(self, id, addr): # socket data refresh in controller table if changed
-        ''' Refreshes the socket data in the controller table for a host. 
-            Auto adding (new unknown) records for testing could be possible. Socket changes to be detected? 
+        ''' Refreshes the socket data in the controller table for a host.
+            Auto adding (new unknown) records for testing could be possible. Socket changes to be detected?
         '''
         Cmd="UPDATE controller SET socket='"+str(addr[0])+","+str(addr[1])+"',socket_ts='"+str(self.ts)+"' \
-            WHERE mac='"+id+"' and socket !='" +str(addr[0])+","+str(addr[1])+"'" # keeps the last change time 
-            
+            WHERE mac='"+id+"' and socket !='" +str(addr[0])+","+str(addr[1])+"'" # keeps the last change time
+
         try: # new state for this id
             self.conn.execute(Cmd) # insert, kursorit pole vaja
             self.conn.commit()
-            return 0        
-        except:   # no such id 
+            return 0
+        except:   # no such id
             print(Cmd) # debug
             traceback.print_exc() # debug
             return 1
@@ -194,11 +194,11 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         
     def message4host(self, id, addr, inn = ''): # for one host at the time. inn = msg id to ack, skip for commands
         ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
-        
+
         #cur = self.conn.cursor()
-        Cmd="BEGIN TRANSACTION" # 
+        Cmd="BEGIN TRANSACTION" #
         self.conn.execute(Cmd) # tagasi -"-
-        
+
         Cmd="select newstate.register,newstate.value from newstate LEFT join state on newstate.mac = state.mac and \
         newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
         (select register from commands where commands.register = newstate.register)) and  \
@@ -206,12 +206,12 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         #print Cmd
         self.cursor.execute(Cmd)  # read from newstate table
-        
+
         if inn == "":
             data = "id:" + id + "\n" # alustame vastust id-ga
         else:
             data = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
-        
+
         answerlines = 0
         for row in self.cursor:
             #print "select for sending to controller newstate left join state row",row
@@ -219,15 +219,15 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             value=row[1]
             data=data + str(register) + ":" + str(value) + "\n" # cmd or setup message to host in addition to id and inn
             answerlines = answerlines + 1
-        
+
         #retrycount refresh, not needed if no cmd / setup to send
         if answerlines > 0:
             # retrycount in newstate ########
             # kui on ridasid mida saata, siis incremendime nendes ridades retrycount atribuuti newstate
-            # tabelis. 
-            # neeme feb 2013 nyyd saadetakse ka ilma kontrolleripoolse poordumiseta! 
-            # tekkiski probleem, et saatis korduvalt enne kui retrycount uuenes. transaction appi? 
-            
+            # tabelis.
+            # neeme feb 2013 nyyd saadetakse ka ilma kontrolleripoolse poordumiseta!
+            # tekkiski probleem, et saatis korduvalt enne kui retrycount uuenes. transaction appi?
+
             # retrycounti pole vaja uuendada, kui midagi ei saadeta.
             Cmd ="update newstate \
             SET retrycount = ( \
@@ -255,14 +255,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10 \
             ) ;"
 
-            self.conn.execute(Cmd)  
-            
+            self.conn.execute(Cmd)
+
         self.conn.commit() # end transaction
 
         print("---answer or command to the host ",id,addr,data) # debug
         return addr,data
-        
-        
+
+
     #def message2host(self, addr, data, sender): # actual send based on eval(self.sender)
         #exec(sender(addr,data))
-        

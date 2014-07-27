@@ -1,4 +1,4 @@
-# this class is to be universally used for sqlite tables in memory 
+# this class is to be universally used for sqlite tables in memory
 import sqlite3
 import glob # for * in filenames
 import sys
@@ -16,7 +16,7 @@ class SQLgeneral: # for udp monitor, more generic than the droidcontroller.SQLge
             else:
                 #print('single table',table) # debug
                 self.sqlread(table)
-                
+
 
     def sqlread(self, table): # drops table and reads from file table.sql that must exist
         sql=''
@@ -59,7 +59,7 @@ class SQLgeneral: # for udp monitor, more generic than the droidcontroller.SQLge
         cur.execute(Cmd)
         conn.commit()
         for row in cur:
-            output.append(row) 
+            output.append(row)
         return output
 
 
@@ -94,8 +94,6 @@ class SQLgeneral: # for udp monitor, more generic than the droidcontroller.SQLge
         for row in cur: # one row per member
             #print('get_value() row:', row) # debug
             value.append(row[0])
-        
+
         conn.commit()
         return value # tuple from member values
-        
-        

@@ -8,15 +8,15 @@ class UDPReader(object): # object on millegiparast vajalik
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setblocking(False)
         self._sock.bind((addr, port))
-        
+
         self.addr=addr
         self.port=port
         self.handler=handler
-                
+
         self._io_loop = tornado.ioloop.IOLoop.instance()
         self._io_loop.add_handler(self._sock.fileno(), functools.partial(self._callback, self._sock), self._io_loop.READ)
 
-        
+
     def _callback(self, sock, fd, events):  # fd is some file descriptor... (?)
         if events & self._io_loop.READ:
             self._callback_read(sock, fd)
