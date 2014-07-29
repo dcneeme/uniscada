@@ -60,8 +60,9 @@ class MonitorUniscada:
         # put here tasks to be executed in 1 s interval
         # dump tables for example, delete some records etc
         
-        print('state',self.b.print_table('state')) # debug
-        print('newstate',self.b.print_table('newstate')) # debug
+        print('hosts', h.listhosts())
+        print('state', self.b.print_table('state')) # debug
+        print('newstate', self.b.print_table('newstate')) # debug
         
         #if len(sendqueue) > 0:
             #sendstring=b.message2host()

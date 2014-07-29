@@ -115,7 +115,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return value # tuple from member values
 
 
-    def comm2state(self, udpreader, addr, data): # executes also statemodify to update the state table
+    def comm2state(self, host, data): # executes also statemodify to update the state table
         ress=0
         res=0
         valueback = ''
@@ -124,7 +124,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             lines=data.splitlines()
             #print('received lines count',len(lines)) # debug
             id=data[data.find("id:")+3:].splitlines()[0]
-            res = self.controllermodify(id, addr) # update socket data if changed
+            #res = self.controllermodify(id, addr) # update socket data if changed
+            res=0
             if res != 0:
                 print('unknown host id',id,'in the message from',addr)
                 return res # no further actions for this illegal host
@@ -157,7 +158,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                 ress += res
             self.conn.commit() # transaction end
             sendmessage = self.message4host(id, inn) # ack, w newstate
-            self.message2host(self.comm, addr, sendmessage)
+            self.message2host(host, sendmessage)
         else:
             print('invalid datagram, no id found in', data)
             ress += 1
@@ -285,8 +286,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return data
 
 
-    def message2host(self, comm, addr, data): # actual send based on eval(self.sender)
-        comm.send(addr,data)
+    def message2host(self, host, data): # actual send based on eval(self.sender)
+        host.comm.send(host.chdata,data)
         
 
     def setcomm(self, comm): # cannot set it in init, unknow at this time

@@ -1,11 +1,12 @@
 # listen and forward UDP messages
 import traceback
+from host import *
+import socket
+import tornado.ioloop
+import functools # from functools import partial
         
 class UDPComm(object): # object on millegiparast vajalik
     def __init__(self, addr, port, handler):
-        import socket
-        import tornado.ioloop
-        import functools # from functools import partial
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setblocking(False)
         self._sock.bind((addr, port))
@@ -30,7 +31,8 @@ class UDPComm(object): # object on millegiparast vajalik
         #debugdata = { "from": { "ip": addr[0], "port": addr[1] }, "msg": str(data) }
         debugdata = { "from": addr, "msg": str(data) }
         print("got UDP " + str(debugdata))
-        self.handler(self, addr, data)
+        h=Host(self, addr)
+        self.handler(h, data)
 
 
     def send(self, addr, sendstring = ''): # actual udp sending. give message as parameter
