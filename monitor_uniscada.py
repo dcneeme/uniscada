@@ -28,7 +28,7 @@ from sdpbuffer import *
 SQLDIR='/srv/scada/uniscada/sqlite/' #  "/data/scada/sqlite" # testimiseks itvilla serveris
 tables=['state','newstate','controller','commands','service_*'] # to be added
 addr='0.0.0.0'
-port = 44444 # testimiseks 44444, pane parast 44445
+port = 44442 # testimiseks, pane parast 44445
 interval = 5 # effective for first only
 
 if len(sys.argv)>1: # port as parameter given
@@ -59,11 +59,11 @@ class MonitorUniscada:
         print("executing sync tasks...")
         # put here tasks to be executed in 1 s interval
         # dump tables for example, delete some records etc
-        
-        print('hosts', h.listhosts())
+
+        #print('hosts', h.listhosts())
         print('state', self.b.print_table('state')) # debug
         print('newstate', self.b.print_table('newstate')) # debug
-        
+
         #if len(sendqueue) > 0:
             #sendstring=b.message2host()
             #u.udpsend(senstring)

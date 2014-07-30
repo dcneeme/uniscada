@@ -148,7 +148,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                             valueback = row[0]
                         print('going to answer to/with', id, register, valueback) # debug
                         res = self.newstatemodify(id,register,valueback)
-                    
+
                     else:
                         res = self.statemodify(id, register, value) # only if host id existed in controller
                         if res == 0:
@@ -168,7 +168,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
     def statemodify(self, id, register, value): # received key:value to state table
         ''' Received key:value to state table. This is used by comm2state() '''
         DUE_TIME=self.ts+5 # min pikkus enne kordusi, tegelikult pole vist vaja
-        try: 
+        try:
             Cmd="INSERT INTO STATE (register, mac, value, timestamp, due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
             print Cmd # debug
@@ -182,7 +182,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                 self.conn.execute(Cmd) # update, kursorit pole vaja
             except:
                 traceback.print_exc()
-                return 1 
+                return 1
         return 0
 
 
@@ -191,8 +191,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         if value == '' or value == None:
             print('no value for newstate, exiting newstatemodify')
             return 1
-            
-        try: 
+
+        try:
             Cmd="INSERT INTO newstate(register,mac,value,timestamp) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"')"
             print Cmd  # debug
@@ -201,9 +201,9 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         except:   # no updates, insert only
             print('newstatemodify could not add to newstate', id, register, value)
-            return 1 
-   
-   
+            return 1
+
+
     def controllermodify(self, id, addr): # socket data refresh in controller table if changed
         ''' Refreshes the socket data in the controller table for a host.
             Auto adding (new unknown) records for testing could be possible. Socket changes to be detected?
@@ -288,7 +288,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
     def message2host(self, host, data): # actual send based on eval(self.sender)
         host.comm.send(host.chdata,data)
-        
+
 
     def setcomm(self, comm): # cannot set it in init, unknow at this time
         self.comm =  comm

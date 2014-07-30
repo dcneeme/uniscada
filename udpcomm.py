@@ -4,7 +4,7 @@ from host import *
 import socket
 import tornado.ioloop
 import functools # from functools import partial
-        
+
 class UDPComm(object): # object on millegiparast vajalik
     def __init__(self, addr, port, handler):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
