@@ -4,6 +4,9 @@ from host import *
 import socket
 import tornado.ioloop
 import functools # from functools import partial
+import logging
+
+log = logging.getLogger(__name__)
 
 class UDPComm(object): # object on millegiparast vajalik
     def __init__(self, addr, port, handler):
@@ -23,31 +26,23 @@ class UDPComm(object): # object on millegiparast vajalik
         if events & self._io_loop.READ:
             self._callback_read(sock, fd)
         if events & self._io_loop.ERROR:
-            print("IOLoop error")
+            log.critical("IOLoop error")
             sys.exit(1)
 
     def _callback_read(self, sock, fd):
         (data, addr) = sock.recvfrom(4096)
-        #debugdata = { "from": { "ip": addr[0], "port": addr[1] }, "msg": str(data) }
-        debugdata = { "from": addr, "msg": str(data) }
-        print("got UDP " + str(debugdata))
+        log.debug("got UDP " + str({ "from": addr, "msg": str(data) }))
         h=Host(self, addr)
         self.handler(h, data)
 
 
     def send(self, addr, sendstring = ''): # actual udp sending. give message as parameter
         ''' Sends UDP data immediately, adding self.inum if >0. '''
-        #if sendstring == '': # nothing to send
-        #    print('send(): nothing to send!')
-        #    return 0 # saadetav pikkus 0
-        #print('send going to send to', addr, sendstring) # debug
-        # vahel vaja keepalive 0 mahuga
+       log.debug("send going to send to %s: %s", str(addr), sendstring)
         try:
-            #sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # topetkodeerimine voib juhtuda
-            sendlen=self._sock.sendto(sendstring, addr) # tagastab saadetud baitide arvu
-            msg='sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' ')   # debug show as one line
-            print(msg)
-            return sendlen
+            sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # tagastab saadetud baitide arvu
+            log.debug('sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' '))
+           return sendlen
         except:
             traceback.print_exc() # debug
             return None

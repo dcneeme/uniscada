@@ -21,6 +21,11 @@ import string
 import tornado.ioloop
 import functools
 
+import logging
+import sys
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+log = logging.getLogger(__name__)
+
 from udpcomm import *
 from sdpbuffer import *
 
@@ -33,7 +38,7 @@ interval = 5 # effective for first only
 
 if len(sys.argv)>1: # port as parameter given
     port=int(sys.argv[1]) # otherwise default value set above will be used
-    print('UDP port to listen set to', port)
+    log.info('UDP port to listen set to %d', port)
     sys.stdout.flush()
 
 
@@ -56,20 +61,20 @@ class MonitorUniscada:
         self.interval = interval
 
     def sync_tasks(self): # regular checks or tasks
-        print("executing sync tasks...")
+        log.info("executing sync tasks...")
         # put here tasks to be executed in 1 s interval
         # dump tables for example, delete some records etc
 
-        #print('hosts', h.listhosts())
-        print('state', self.b.print_table('state')) # debug
-        print('newstate', self.b.print_table('newstate')) # debug
+        #log.info('hosts', h.listhosts())
+        log.info('state %s', self.b.print_table('state')) # debug
+        log.info('newstate %s', self.b.print_table('newstate')) # debug
 
         #if len(sendqueue) > 0:
             #sendstring=b.message2host()
             #u.udpsend(senstring)
 
         if interval > 0:
-            print("UPD processing until next sync...")
+            log.info("UPD processing until next sync...")
             self.ioloop.add_timeout(datetime.timedelta(seconds=self.interval), self.sync_tasks)
 
 
