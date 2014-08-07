@@ -37,12 +37,14 @@ class UDPComm(object): # object on millegiparast vajalik
 
     def send(self, addr, sendstring = ''): # actual udp sending. give message as parameter
         ''' Sends UDP data immediately, adding self.inum if >0. '''
-        if sendstring == '': # nothing to send
-            print('send(): nothing to send!')
-            return 1
-        print('send going to send to', addr, sendstring) # debug
+        #if sendstring == '': # nothing to send
+        #    print('send(): nothing to send!')
+        #    return 0 # saadetav pikkus 0
+        #print('send going to send to', addr, sendstring) # debug
+        # vahel vaja keepalive 0 mahuga
         try:
-            sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # tagastab saadetud baitide arvu
+            #sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # topetkodeerimine voib juhtuda
+            sendlen=self._sock.sendto(sendstring, addr) # tagastab saadetud baitide arvu
             msg='sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' ')   # debug show as one line
             print(msg)
             return sendlen
@@ -53,4 +55,4 @@ class UDPComm(object): # object on millegiparast vajalik
 # #############################################
 
 if __name__ == '__main__':
-    UDPComm(self.addr, self.port, self.handler)
+    pass
