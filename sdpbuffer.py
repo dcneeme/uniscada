@@ -14,6 +14,7 @@ import traceback
 import sqlite3
 import glob
 import time
+from sdp import *
 
 import logging
 log = logging.getLogger(__name__)
@@ -117,30 +118,27 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         return value # tuple from member values
 
 
-    def comm2state(self, host, data): # executes also statemodify to update the state table
+    def comm2state(self, host, datagram): # executes also statemodify to update the state table
         ress=0
         res=0
         valueback = ''
         self.ts=time.time()
-        if "id:" in data: # first check based on host id existence in the received message, must exist to be valid message!
-            lines=data.splitlines()
-            #log.info('received lines count %d',len(lines)) # debug
-            id=data[data.find("id:")+3:].splitlines()[0]
-            #res = self.controllermodify(id, addr) # update socket data if changed
-            res=0
-            if res != 0:
-                log.info('unknown host id %s in the message from %s', id, addr)
-                return res # no further actions for this illegal host
 
-            inn=data[data.find("in:")+3:].splitlines()[0] # optional datagram id
+        sdp = SDP()
+        sdp.decode(datagram)
+
+        id = sdp.get_data('id')
+
+        if id is not None:
+
+            inn = sdp.get_data('in')
+
+            # uuri eraldi data status value(s)
             Cmd="BEGIN TRANSACTION" #
             self.conn.execute(Cmd)
-            for i in range(len(lines)): # looking into every member (line) of incoming message
+            for (register, value) in sdp.get_data_list():
                 #log.info('line %d %d',i,lines[i]) # debug
-                if ":" in lines[i] and not 'id:' in lines[i] and not 'in:' in lines[i]:
-                    line = lines[i].split(':') # tuple
-                    register = line[0] # setup reg name
-                    value = line[1] # setup reg value
+                if register != 'id' and register != 'in':
                     log.info('received from controller %s key:value %s:%s', id,register,value) # debug
                     if '?' in value: # return the buffered value from state
                         cur = self.conn.cursor() # local!
@@ -238,7 +236,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         #log.info(Cmd)
         self.cursor.execute(Cmd)  # read from newstate table
 
-        if inn == "":
+        if inn is None:
             data = "id:" + id + "\n" # alustame vastust id-ga
         else:
             data = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
