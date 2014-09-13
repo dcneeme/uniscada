@@ -1,4 +1,3 @@
-# listen and forward UDP messages
 import traceback
 from host import *
 import socket
@@ -9,6 +8,9 @@ import logging
 log = logging.getLogger(__name__)
 
 class UDPComm(object): # object on millegiparast vajalik
+    '''
+    listen and forward UDP messages
+    '''
     def __init__(self, addr, port, handler):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setblocking(False)
@@ -32,17 +34,22 @@ class UDPComm(object): # object on millegiparast vajalik
     def _callback_read(self, sock, fd):
         (data, addr) = sock.recvfrom(4096)
         log.debug("got UDP " + str({ "from": addr, "msg": str(data) }))
-        h=Host(self, addr)
-        self.handler(h, data)
+        host = Host(self, addr)
+        self.handler(host, data)
 
-
-    def send(self, addr, sendstring = ''): # actual udp sending. give message as parameter
-        ''' Sends UDP data immediately, adding self.inum if >0. '''
-       log.debug("send going to send to %s: %s", str(addr), sendstring)
+    def send(self, addr, sendstring = ''):
+        '''
+        actual udp sending. give message as parameter
+        Sends UDP data immediately, adding self.inum if >0.
+        '''
+        if sendstring == '':
+            log.info("send(): nothing to send!")
+            return 0
+        log.debug("send going to send to %s: %s", str(addr), sendstring)
         try:
-            sendlen=self._sock.sendto(sendstring.encode('utf-8'), addr) # tagastab saadetud baitide arvu
+            sendlen = self._sock.sendto(sendstring, addr)
             log.debug('sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' '))
-           return sendlen
+            return sendlen
         except:
             traceback.print_exc() # debug
             return None
