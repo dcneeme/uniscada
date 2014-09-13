@@ -17,7 +17,7 @@ class SDP:
         elif key[-1] == 'V':
             self.add_value(key[:-1], str(val))
         elif key[-1] == 'W':
-            self.add_value(key[:-1], map(int, val.split(' ')))
+            self.add_value(key[:-1], list(map(int, val.split(' '))))
         else:
             self.data['data'][key] = val
 
@@ -27,8 +27,24 @@ class SDP:
     def add_value(self, key, val):
         self.data['value'][key] = val
 
-    def get_data(self):
-        return self.data
+    def get_data(self, key):
+        if key[-1] == 'S':
+            return self.data['status'].get(key[:-1], None)
+        elif key[-1] == 'V' or key[-1] == 'W':
+            return self.data['value'].get(key[:-1], None)
+        else:
+            return self.data['data'].get(key, None)
+
+    def get_data_list(self):
+        for key in self.data['data'].keys():
+            yield (key, str(self.data['data'][key]))
+        for key in self.data['status'].keys():
+            yield (key + 'S:', str(self.data['status'][key]))
+        for key in self.data['value'].keys():
+            if isinstance(self.data['value'][key], list):
+                yield (key + 'W:', ' '.join(map(str, self.data['value'][key])))
+            else:
+                yield (key + 'V:', str(self.data['value'][key]))
 
     def encode(self, id=None):
         datagram = ''
