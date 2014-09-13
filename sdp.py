@@ -6,20 +6,18 @@ log = logging.getLogger(__name__)
 
 class SDP:
     def __init__(self):
-        print type(self)
         self.data = {}
         self.data['data'] = {}
         self.data['status'] = {}
         self.data['value'] = {}
-        self.data['values'] = {}
 
     def add_keyvalue(self, key, val):
         if key[-1] == 'S':
             self.add_status(key[:-1], int(val))
         elif key[-1] == 'V':
-            self.add_value(key[:-1], val)
+            self.add_value(key[:-1], str(val))
         elif key[-1] == 'W':
-            self.add_values(key[:-1], map(int, val.split(' ')))
+            self.add_value(key[:-1], map(int, val.split(' ')))
         else:
             self.data['data'][key] = val
 
@@ -28,9 +26,6 @@ class SDP:
 
     def add_value(self, key, val):
         self.data['value'][key] = val
-
-    def add_values(self, key, val):
-        self.data['values'][key] = val
 
     def get_data(self):
         return self.data
@@ -46,9 +41,10 @@ class SDP:
         for key in self.data['status'].keys():
             datagram += key + 'S:' + str(self.data['status'][key]) + '\n'
         for key in self.data['value'].keys():
-            datagram += key + 'V:' + str(self.data['value'][key]) + '\n'
-        for key in self.data['values'].keys():
-            datagram += key + 'W:' + ' '.join(map(str, self.data['values'][key])) + '\n'
+            if isinstance(self.data['value'][key], list):
+                datagram += key + 'W:' + ' '.join(map(str, self.data['value'][key])) + '\n'
+            else:
+                datagram += key + 'V:' + str(self.data['value'][key]) + '\n'
         return datagram
 
     def decode(self, datagram):
@@ -60,13 +56,4 @@ class SDP:
             self.add_keyvalue(key, val)
 
     def __str__(self):
-        s = ''
-        for key in self.data['data'].keys():
-            s += 'key=\"' + str(key) + '\", val=\"' + str(self.data['data'][key]) + '\"\n'
-        for key in self.data['status'].keys():
-            s += 'key=\"' + str(key) + 'S\", val=\"' + str(self.data['status'][key]) + '\"\n'
-        for key in self.data['value'].keys():
-            s += 'key=\"' + str(key) + 'V\", val=\"' + str(self.data['value'][key]) + '\"\n'
-        for key in self.data['values'].keys():
-            s += 'key=\"' + str(key) + 'W\", val=' + str(self.data['values'][key]) + '\n'
-        return s
+        return str(self.data)
