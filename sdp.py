@@ -49,7 +49,7 @@ class SDP:
     def encode(self, id=None):
         datagram = ''
         if id:
-            self.add.keyvalue('id', id)
+            self.add_keyvalue('id', id)
         if not 'id' in self.data['data']:
             raise Exception("id missing");
         for key in self.data['data'].keys():
