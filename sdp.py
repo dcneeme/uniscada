@@ -15,15 +15,18 @@ class SDP:
 
     def add_keyvalue(self, key, val):
         ''' Add one key:value pair to the data dictionary '''
-        if key[-1] == 'S':
-            self.add_status(key[:-1], int(val))
-        elif key[-1] == 'V':
-            self.add_value(key[:-1], str(val))
-        elif key[-1] == 'W':
-            self.add_value(key[:-1], list(map(int, val.split(' '))))
-        else:
-            self.data['data'][key] = val
-
+        if not '?' in val:
+            if key[-1] == 'S':
+                self.add_status(key[:-1], int(val))
+            elif key[-1] == 'V':
+                self.add_value(key[:-1], str(val))
+            elif key[-1] == 'W':
+                self.add_value(key[:-1], list(map(int, val.split(' '))))
+            else:
+                self.data['data'][key] = val
+        else: # '?' is string, but allowed as value in pairs also for keys ending with S or W
+            self.add_value(key[:-1], val)
+        
     def add_status(self, key, val):
         ''' Add key:value as status information to the data dictionary. Possible values 0, 1, 2. '''
         self.data['status'][key] = int(val)
