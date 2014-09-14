@@ -12,6 +12,19 @@ class SDP:
         self.data['value'] = {}
 
     def add_keyvalue(self, key, val):
+        ''' Add key:val pair to the packet
+
+        If key ends with "S", it is saved as a Status (int)
+        If key ends with "V", it is saved as a Value (int, float or str)
+        If key ends with "W", it is saved as a List of Values (str)
+        All other keys are saved as Data (str)
+
+        Data type conversion is caller responsibility. Only valid
+        data types are accepted.
+
+        :param key: data key
+        :param val: data value
+        '''
         if key[-1] == 'S':
             self.add_status(key[:-1], int(val))
         elif key[-1] == 'V':
@@ -30,11 +43,21 @@ class SDP:
             self.data['data'][key] = val
 
     def add_status(self, key, val):
+        ''' Add Status key:val pair to the packet
+
+        :param key: Status key without "S" suffix
+        :param val: Status value (int)
+        '''
         if not isinstance(val, int):
             raise Exception('Status _MUST_BE_ int type')
         self.data['status'][key] = int(val)
 
     def add_value(self, key, val):
+        ''' Add Value or List of Values key:val pair to the packet
+
+        :param key: Value or List of Values key without "V" or "W" suffix
+        :param val: Value value (int, float or str) or List of Values value (list)
+        '''
         if not isinstance(val, int) and \
            not isinstance(val, float) and \
            not isinstance(val, str) and \
@@ -43,6 +66,17 @@ class SDP:
         self.data['value'][key] = val
 
     def get_data(self, key):
+        ''' Get value of saved data
+
+        :param key: data key
+
+        If key ends with "S", it returns a Status (int)
+        If key ends with "V", it returns a Value (int, float or str)
+        If key ends with "W", it returns a List of Values (list)
+        All other keys returns a Data (str)
+
+        :returns: Status, Value, List of Values, Data or None if key is missing
+        '''
         if key[-1] == 'S':
             return self.data['status'].get(key[:-1], None)
         elif key[-1] == 'V':
@@ -59,6 +93,17 @@ class SDP:
             return self.data['data'].get(key, None)
 
     def get_data_list(self):
+        ''' Generates (key, val) duples for all variables in the packet
+
+        :returns: Generated (key, val) pair for each variable
+
+        Status keys end with "S"
+        Value keys end with "V"
+        List of values keys end with "W"
+        All other keys represent other Data
+
+        Both key and value are always str type.
+        '''
         for key in self.data['status'].keys():
             yield (key + 'S:', str(self.data['status'][key]))
         for key in self.data['value'].keys():
@@ -70,6 +115,12 @@ class SDP:
             yield (key, str(self.data['data'][key]))
 
     def encode(self, id=None):
+        ''' Encodes SDP packet to datagram
+
+        :param id: Optional paramater for id:<val> Data (str)
+
+        :returns: The string representation of SDP datagram
+        '''
         datagram = ''
         if id:
             self.add_keyvalue('id', id)
@@ -87,6 +138,10 @@ class SDP:
         return datagram
 
     def decode(self, datagram):
+        ''' Decodes SDP datagram to packet
+
+        :param datagram: The string representation of SDP datagram
+        '''
         for line in datagram.splitlines():
             try:
                 (key, val) = line.split(':')
