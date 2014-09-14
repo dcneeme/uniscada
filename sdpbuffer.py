@@ -20,7 +20,8 @@ import logging
 log = logging.getLogger(__name__)
 
 class SDPBuffer: # for the messages in UniSCADA service description protocol
-    def __init__(self, SQLDIR, tables, comm = None): # [multiple tables as tuple]
+    def __init__(self, SQLDIR, tables, comm = None): # [multiple tables as list]
+        ''' Init, also read necessary SQL tables into memory '''
         self.comm = comm # from / to communication interface towards site controllers
         self.sqldir=SQLDIR
         self.conn = sqlite3.connect(':memory:')
@@ -38,6 +39,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
 
     def sqlread(self, table): # drops table and reads from file table.sql that must exist
+        ''' Refresh given SQL table in memory from file, if exists. '''
         sql=''
         filename=self.sqldir+table+'.sql' # the file to read from
         try:
@@ -46,7 +48,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             log.info(msg)
         except:
             msg='FAILURE in opening '+filename+': '+str(sys.exc_info()[1])
-            log.info(msg)
+            log.warning(msg)
             #udp.syslog(msg)
             traceback.print_exc()
             return 1
@@ -57,7 +59,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             self.conn.commit()
             self.conn.executescript(sql) # read table into database
             self.conn.commit()
-            msg='sqlread: successfully recreated table '+table
+            msg='sqlread: successfully (re)created table '+table
             log.info(msg)
             #udp.syslog(msg)
             return 0
@@ -71,7 +73,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
 
     def print_table(self, table, column = '*'):
-        ''' reads and returns he content of the table '''
+        ''' Reads and returns the content of the given table. '''
         output=[]
         Cmd ="SELECT "+column+" from "+table
         cur = self.conn.cursor()
@@ -83,7 +85,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
 
     def dump_table(self, table):
-        ''' Writes a table into SQL-file '''
+        ''' Writes the given table into SQL-file '''
         msg='going to dump '+table+' into '+SQLDIR+table+'.sql'
         log.info(msg)
         try:
@@ -94,14 +96,14 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 0
         except:
             msg='FAILURE dumping '+table+'! '+str(sys.exc_info()[1])
-            log.info(msg)
+            log.warning(msg)
             #syslog(msg)
             traceback.print_exc()
             return 1
 
 
     def get_column(self, table, column, like=''): # returns raw,value,lo,hi,status values based on service name and member number
-        ''' Returns member values as tuple from channel table (ai, di, counter) based on service name '''
+        ''' Returns member values as list from the channel table (ai, di, counter) based on service name '''
         cur=self.conn.cursor()
         if like == '':
             Cmd="select "+column+" from "+table+" order by "+column
@@ -124,7 +126,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         valueback = ''
         self.ts=time.time()
 
-        sdp = SDP()
+        sdp = SDP() # datagram instance
         sdp.decode(datagram)
 
         id = sdp.get_data('id')
@@ -154,13 +156,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                         if res == 0:
                             log.info('statemodify done for %s %s %s', id, register, value)
                         else:
-                            log.info('statemodify FAILED for %s %s %s', id, register, value)
+                            log.warning('statemodify FAILED for %s %s %s', id, register, value)
                 ress += res
             self.conn.commit() # transaction end
             sendmessage = self.message4host(id, inn) # ack, w newstate
             self.message2host(host, sendmessage)
         else:
-            log.info('invalid datagram, no id found in %s', data)
+            log.warning('invalid datagram, no id found in %s', data)
             ress += 1
         return ress
 
@@ -200,7 +202,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 0
 
         except:   # no updates, insert only
-            log.info('newstatemodify could not add to newstate %s %s %s', id, register, value)
+            log.warning('newstatemodify could not add to newstate %s %s %s', id, register, value)
             return 1
 
 
@@ -216,7 +218,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             self.conn.commit()
             return 0
         except:   # no such id
-            log.info(Cmd) # debug
+            log.warning(Cmd) # debug
             traceback.print_exc() # debug
             return 1
 
@@ -251,7 +253,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         #retrycount refresh, not needed if no cmd / setup to send
         if answerlines > 0:
-            # retrycount must be updated
+            # retrycount in newstate must be updated
             Cmd ="update newstate \
             SET retrycount = ( \
             select CASE WHEN  ( select max(retrycount) from newstate where mac='" + str(id) + "' \
