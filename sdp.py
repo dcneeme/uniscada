@@ -14,39 +14,98 @@ class SDP:
         self.data['value'] = {}
 
     def add_keyvalue(self, key, val):
-        ''' Add one key:value pair to the data dictionary '''
-        if not '?' in val:
-            if key[-1] == 'S':
-                self.add_status(key[:-1], int(val))
-            elif key[-1] == 'V':
-                self.add_value(key[:-1], str(val))
-            elif key[-1] == 'W':
-                self.add_value(key[:-1], list(map(int, val.split(' '))))
-            else:
-                self.data['data'][key] = val
-        else: # '?' is string, but allowed as value in pairs also for keys ending with S or W
+        ''' Add key:val pair to the packet
+
+        If key ends with "S", it is saved as a Status (int)
+        If key ends with "V", it is saved as a Value (int, float or str)
+        If key ends with "W", it is saved as a List of Values (str)
+        All other keys are saved as Data (str)
+
+        Data type conversion is caller responsibility. Only valid
+        data types are accepted.
+
+        :param key: data key
+        :param val: data value
+        '''
+        if key[-1] == 'S':
+            self.add_status(key[:-1], int(val))
+        elif key[-1] == 'V':
+            if not isinstance(val, int) and \
+               not isinstance(val, float) and \
+               not isinstance(val, str):
+                raise Exception('Value _MUST_BE_ str, int or float type')
             self.add_value(key[:-1], val)
-        
+        elif key[-1] == 'W':
+            if not isinstance(val, str):
+                raise Exception('List of Values _MUST_BE_ string of numbers')
+            self.add_value(key[:-1], list(map(float, val.split(' '))))
+        else:
+            if not isinstance(val, str):
+                raise Exception('Data _MUST_BE_ string')
+            self.data['data'][key] = val
+
     def add_status(self, key, val):
-        ''' Add key:value as status information to the data dictionary. Possible values 0, 1, 2. '''
+        ''' Add Status key:val pair to the packet
+
+        :param key: Status key without "S" suffix
+        :param val: Status value (int)
+        '''
+        if not isinstance(val, int):
+            raise Exception('Status _MUST_BE_ int type')
         self.data['status'][key] = int(val)
 
     def add_value(self, key, val):
-        ''' Add key:value as value information to the data dictionary. Value may be string or list of numbers. '''
+        ''' Add Value or List of Values key:val pair to the packet
+
+        :param key: Value or List of Values key without "V" or "W" suffix
+        :param val: Value value (int, float or str) or List of Values value (list)
+        '''
+        if not isinstance(val, int) and \
+           not isinstance(val, float) and \
+           not isinstance(val, str) and \
+           not isinstance(val, list):
+            raise Exception('Value _MUST_BE_ str, int, float or list type')
         self.data['value'][key] = val
 
     def get_data(self, key):
+        ''' Get value of saved data
+
+        :param key: data key
+
+        If key ends with "S", it returns a Status (int)
+        If key ends with "V", it returns a Value (int, float or str)
+        If key ends with "W", it returns a List of Values (list)
+        All other keys returns a Data (str)
+
+        :returns: Status, Value, List of Values, Data or None if key is missing
+        '''
         if key[-1] == 'S':
             return self.data['status'].get(key[:-1], None)
-        elif key[-1] == 'V' or key[-1] == 'W':
-            return self.data['value'].get(key[:-1], None)
+        elif key[-1] == 'V':
+            val = self.data['value'].get(key[:-1], None)
+            if isinstance(val, list):
+                return None
+            return val
+        elif key[-1] == 'W':
+            val = self.data['value'].get(key[:-1], None)
+            if isinstance(val, list):
+                return val
+            return None
         else:
             return self.data['data'].get(key, None)
 
     def get_data_list(self):
-        ''' Returns the whole SDP datagram content as dictionary '''
-        for key in self.data['data'].keys():
-            yield (key, str(self.data['data'][key]))
+       ''' Generates (key, val) duples for all variables in the packet
+
+        :returns: Generated (key, val) pair for each variable
+
+        Status keys end with "S"
+        Value keys end with "V"
+        List of values keys end with "W"
+        All other keys represent other Data
+
+        Both key and value are always str type.
+        '''
         for key in self.data['status'].keys():
             yield (key + 'S:', str(self.data['status'][key]))
         for key in self.data['value'].keys():
@@ -54,12 +113,19 @@ class SDP:
                 yield (key + 'W:', ' '.join(map(str, self.data['value'][key])))
             else:
                 yield (key + 'V:', str(self.data['value'][key]))
+        for key in self.data['data'].keys():
+            yield (key, str(self.data['data'][key]))
 
     def encode(self, id=None):
-        ''' Return the datagram for the controller identified by id, one key:value per line. '''
+       ''' Encodes SDP packet to datagram
+
+        :param id: Optional paramater for id:<val> Data (str)
+
+        :returns: The string representation of SDP datagram
+        '''
         datagram = ''
         if id:
-            self.add.keyvalue('id', id)
+            self.add_keyvalue('id', id)
         if not 'id' in self.data['data']:
             raise Exception("id missing");
         for key in self.data['data'].keys():
@@ -74,13 +140,18 @@ class SDP:
         return datagram
 
     def decode(self, datagram):
-        ''' Converts SDP datagram from controller into dictionary '''
+        ''' Decodes SDP datagram to packet
+
+        :param datagram: The string representation of SDP datagram
+        '''
         for line in datagram.splitlines():
             try:
                 (key, val) = line.split(':')
             except:
                 raise Exception('error in line: \"' + line + '\"')
             self.add_keyvalue(key, val)
+        if self.get_data('id') is None:
+            raise Exception('id: _MUST_ exists in datagram')
 
     def __str__(self):
         ''' Returns data dictionary '''
