@@ -27,7 +27,11 @@ class SDP:
         :param key: data key
         :param val: data value
         '''
-        if not '?' in val:
+        if '?' in str(val):
+            print('key,val',key,val) # debug
+            self.add_value(key[:-1], val+key[-1]) # LVW:? -> LV,?W to select LVW value from state
+            # '?' is string, but allowed as value in pairs also for keys ending with S or W
+        else:
             if key[-1] == 'S':
                 self.add_status(key[:-1], int(val))
             elif key[-1] == 'V':
@@ -40,13 +44,13 @@ class SDP:
                 if not isinstance(val, str):
                     raise Exception('List of Values _MUST_BE_ string of numbers')
                 #self.add_value(key[:-1], list(map(float, val.split(' '))))
-                self.add_value(key[:-1], list(map(int, val.split(' ')))) # let the value members to be integers
+                #self.add_value(key[:-1], list(map(int, val.split(' ')))) # let the value members to be integers
+                self.add_value(key[:-1], list(map(eval, val.split(' ')))) # let the value members to be integers
             else:
                 if not isinstance(val, str):
                     raise Exception('Data _MUST_BE_ string')
                 self.data['data'][key] = val
-        else: # '?' is string, but allowed as value in pairs also for keys ending with S or W
-            self.add_value(key[:-1], val+key[-1]) # LVW:? -> LV,?W to select LVW value from state
+            
             
     def add_status(self, key, val):
         ''' Add Status key:val pair to the packet

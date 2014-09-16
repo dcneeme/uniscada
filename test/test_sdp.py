@@ -168,7 +168,7 @@ class SDPTests(unittest.TestCase):
 
     def test_encode_with_id(self):
         ''' Test encoder for full packet'''
-        self.sdp.add_keyvalue('id', 'abc123')
+        self.sdp.add_keyvalue('id', 'abc123123123')
         self.sdp.add_keyvalue('ip', '10.0.0.10')
         self.sdp.add_keyvalue('AAS', 1)
         self.sdp.add_keyvalue('ABV', 2)
@@ -177,7 +177,7 @@ class SDPTests(unittest.TestCase):
         self.sdp.add_keyvalue('AEV', '5.5')
         self.sdp.add_keyvalue('AFV', 'abc')
         self.sdp.add_keyvalue('AGW', '4')
-        self.sdp.add_keyvalue('AHW', '5 6 7.5')
+        self.sdp.add_keyvalue('AHW', '5 6 7')
         datagram = self.sdp.encode()
         self.assertTrue(isinstance(datagram, str))
         self.assertEqual(sorted(datagram.splitlines()), [
@@ -187,15 +187,15 @@ class SDPTests(unittest.TestCase):
             'ADV:4',
             'AEV:5.5',
             'AFV:abc',
-            'AGW:4.0',
-            'AHW:5.0 6.0 7.5',
-            'id:abc123',
+            'AGW:4',
+            'AHW:5 6 7',
+            'id:abc123123123',
             'ip:10.0.0.10',
         ])
 
     def test_encode_with_id_param(self):
         ''' Test encoder with id for full packet'''
-        self.sdp.add_keyvalue('id', 'abc123')
+        self.sdp.add_keyvalue('id', 'abc123123123')
         self.sdp.add_keyvalue('ip', '10.0.0.10')
         self.sdp.add_keyvalue('AAS', 1)
         self.sdp.add_keyvalue('ABV', 2)
@@ -204,8 +204,8 @@ class SDPTests(unittest.TestCase):
         self.sdp.add_keyvalue('AEV', '5.5')
         self.sdp.add_keyvalue('AFV', 'abc')
         self.sdp.add_keyvalue('AGW', '4')
-        self.sdp.add_keyvalue('AHW', '5 6 7.5')
-        datagram = self.sdp.encode(id = 'def456')
+        self.sdp.add_keyvalue('AHW', '5 6 7')
+        datagram = self.sdp.encode(id = 'def456123123')
         self.assertTrue(isinstance(datagram, str))
         self.assertEqual(sorted(datagram.splitlines()), [
             'AAS:1',
@@ -214,9 +214,9 @@ class SDPTests(unittest.TestCase):
             'ADV:4',
             'AEV:5.5',
             'AFV:abc',
-            'AGW:4.0',
-            'AHW:5.0 6.0 7.5',
-            'id:def456',
+            'AGW:4',
+            'AHW:5 6 7',
+            'id:def456123123',
             'ip:10.0.0.10',
         ])
 
@@ -226,11 +226,11 @@ class SDPTests(unittest.TestCase):
 
     def test_decode_valid(self):
         ''' Test decoder with valid datagram '''
-        self.sdp.decode('id:abc123\nAAS:1\nABV:2\nACV:3.5\nADV:4\nAEV:5.5\nAFV:abc\nAGW:4.0\nAHW:5.0 6.0 7.5\nip:10.0.0.10\n')
+        self.sdp.decode('id:abc123123123\nAAS:1\nABV:2\nACV:3.5\nADV:4\nAEV:5.5\nAFV:abc\nAGW:4\nAHW:5 6 7.5\nip:10.0.0.10\n')
 
         d = self.sdp.get_data('id')
         self.assertTrue(isinstance(d, str))
-        self.assertEqual(d, 'abc123')
+        self.assertEqual(d, 'abc123123123')
 
         d = self.sdp.get_data('ip')
         self.assertTrue(isinstance(d, str))
@@ -272,10 +272,30 @@ class SDPTests(unittest.TestCase):
         ''' Test decoder with invalid datagram '''
         self.assertRaises(Exception, self.sdp.decode, '')
         self.assertRaises(Exception, self.sdp.decode, '\n')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\n\n')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\n\nAAS:1')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\nABC')
-        self.assertRaises(Exception, self.sdp.decode, '\nid:abc')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\nABS:abc')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\nACW:123 bcd')
-        self.assertRaises(Exception, self.sdp.decode, 'id:abc\nxyz:123 : 456')
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\n\n')
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\n\nAAS:1')
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\nABC')
+        self.assertRaises(Exception, self.sdp.decode, '\nid:abc123123123')
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\nABS:abc')
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\nACW:123 bcd')
+        #self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\nAKW:1.0 2.3 3') # eval tottu nyyd lubatud!
+        self.assertRaises(Exception, self.sdp.decode, 'id:abc123123123\nxyz:123 : 456')
+        #self.assertRaises(Exception, self.sdp.decode, 'id:abc\nxyz:123\n') # id len 12 tested by who? not needed...
+
+        
+    def test_decode_remind(self):
+        ''' Test decoder with AHW reminder request '''
+        self.sdp.decode('id:abc123123123\nAAS:1\nABV:2\nADV:4\nAEV:55\nAFV:?\nAGW:40\nAHW:?\n')
+
+        datagram = self.sdp.encode(id = 'abc123123123')
+        self.assertTrue(isinstance(datagram, str))
+        self.assertEqual(sorted(datagram.splitlines()), [
+            'AAS:1',
+            'ABV:2',
+            'ADV:4',
+            'AEV:55',
+            'AFV:?V',
+            'AGW:40',
+            'AHV:?W',
+            'id:abc123123123',
+        ])

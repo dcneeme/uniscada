@@ -4,9 +4,9 @@
 
 import time
 import datetime
-from pytz import timezone
-import pytz
-utc = pytz.utc
+#from pytz import timezone
+#import pytz
+#utc = pytz.utc
 import sys
 sys.path.append('/root/tornado-3.2/')
 sys.path.append('/root/backports.ssl_match_hostname-3.4.0.2/src')
