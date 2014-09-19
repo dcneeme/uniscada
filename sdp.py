@@ -95,7 +95,7 @@ class SDP:
             return self.data['data'].get(key, None)
 
     def get_data_list(self):
-       ''' Generates (key, val) duples for all variables in the packet
+        ''' Generates (key, val) duples for all variables in the packet
 
         :returns: Generated (key, val) pair for each variable
 
@@ -117,7 +117,7 @@ class SDP:
             yield (key, str(self.data['data'][key]))
 
     def encode(self, id=None):
-       ''' Encodes SDP packet to datagram
+        ''' Encodes SDP packet to datagram
 
         :param id: Optional paramater for id:<val> Data (str)
 
