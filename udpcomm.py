@@ -33,8 +33,7 @@ class UDPComm(object): # object on millegiparast vajalik
 
     def _callback_read(self, sock, fd):
         (data, addr) = sock.recvfrom(4096)
-        #log.debug("got UDP " + str({ "from": addr, "msg": str(data) })) # kaotas W liikmed alates 2
-        log.debug("got UDP from addr", addr,"msg:", data)
+        log.debug("got UDP " + str({ "from": addr, "msg": str(data) }))
         host = Host(self, addr)
         self.handler(host, data)
 
@@ -50,7 +49,6 @@ class UDPComm(object): # object on millegiparast vajalik
         try:
             sendlen = self._sock.sendto(sendstring, addr)
             log.debug('sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' '))
-            sendstring = '' 
             return sendlen
         except:
             traceback.print_exc() # debug

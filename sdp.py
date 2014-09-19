@@ -27,31 +27,23 @@ class SDP:
         :param key: data key
         :param val: data value
         '''
-        if '?' in str(val):
-            print('key,val',key,val) # debug
-            self.add_value(key[:-1], val+key[-1]) # LVW:? -> LV,?W to select LVW value from state
-            # '?' is string, but allowed as value in pairs also for keys ending with S or W
+        if key[-1] == 'S':
+            self.add_status(key[:-1], int(val))
+        elif key[-1] == 'V':
+            if not isinstance(val, int) and \
+               not isinstance(val, float) and \
+               not isinstance(val, str):
+                raise Exception('Value _MUST_BE_ str, int or float type')
+            self.add_value(key[:-1], val)
+        elif key[-1] == 'W':
+            if not isinstance(val, str):
+                raise Exception('List of Values _MUST_BE_ string of numbers')
+            self.add_value(key[:-1], list(map(float, val.split(' '))))
         else:
-            if key[-1] == 'S':
-                self.add_status(key[:-1], int(val))
-            elif key[-1] == 'V':
-                if not isinstance(val, int) and \
-                   not isinstance(val, float) and \
-                   not isinstance(val, str):
-                    raise Exception('Value _MUST_BE_ str, int or float type')
-                self.add_value(key[:-1], val)
-            elif key[-1] == 'W':
-                if not isinstance(val, str):
-                    raise Exception('List of Values _MUST_BE_ string of numbers')
-                #self.add_value(key[:-1], list(map(float, val.split(' '))))
-                #self.add_value(key[:-1], list(map(int, val.split(' ')))) # let the value members to be integers
-                self.add_value(key[:-1], list(map(eval, val.split(' ')))) # let the value members to be integers
-            else:
-                if not isinstance(val, str):
-                    raise Exception('Data _MUST_BE_ string')
-                self.data['data'][key] = val
-            
-            
+            if not isinstance(val, str):
+                raise Exception('Data _MUST_BE_ string')
+            self.data['data'][key] = val
+
     def add_status(self, key, val):
         ''' Add Status key:val pair to the packet
 
@@ -103,7 +95,7 @@ class SDP:
             return self.data['data'].get(key, None)
 
     def get_data_list(self):
-        ''' Generates (key, val) tuples for all variables in the packet
+        ''' Generates (key, val) duples for all variables in the packet
 
         :returns: Generated (key, val) pair for each variable
 
@@ -115,12 +107,12 @@ class SDP:
         Both key and value are always str type.
         '''
         for key in self.data['status'].keys():
-            yield (key + 'S', str(self.data['status'][key]))
+            yield (key + 'S:', str(self.data['status'][key]))
         for key in self.data['value'].keys():
             if isinstance(self.data['value'][key], list):
-                yield (key + 'W', ' '.join(map(str, self.data['value'][key])))
+                yield (key + 'W:', ' '.join(map(str, self.data['value'][key])))
             else:
-                yield (key + 'V', str(self.data['value'][key]))
+                yield (key + 'V:', str(self.data['value'][key]))
         for key in self.data['data'].keys():
             yield (key, str(self.data['data'][key]))
 

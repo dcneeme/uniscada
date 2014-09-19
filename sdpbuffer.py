@@ -34,7 +34,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                 for singletable in glob.glob(self.sqldir+table):
                     self.sqlread(singletable.split('/')[-1].split('.')[0]) # filename without path and extension
             else:
-                #log.info('single table',table) # debug
+                #log.info('single table %s',table) # debug
                 self.sqlread(table)
 
 
@@ -129,7 +129,6 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         sdp = SDP() # datagram instance
         sdp.decode(datagram)
 
-
         id = sdp.get_data('id')
 
         if id is not None:
@@ -140,36 +139,30 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             Cmd="BEGIN TRANSACTION" #
             self.conn.execute(Cmd)
             for (register, value) in sdp.get_data_list():
-                print('register',register,'value',value) # debug
+                #log.info('line %d %d',i,lines[i]) # debug
                 if register != 'id' and register != 'in':
-                    #log.info('received from controller %s key,value %s %s', id,register,value) # debug
-                    print('received from controller ', id,register,value) # debug
-                    if '?' in value: # return the value from state, original suffix added to ? to avoid V
+                    log.info('received from controller %s key:value %s:%s', id,register,value) # debug
+                    if '?' in value: # return the buffered value from state
                         cur = self.conn.cursor() # local!
-                        register= register[:-1]+value[-1]
                         Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
-                        print('Cmd',Cmd) # debug
-                        #made LVW from LVV if got LVW:?
                         cur.execute(Cmd)
                         for row in cur:
                             valueback = row[0]
-                        #log.info('going to answer to %s with %s %s', id, register, valueback) # debug
+                        log.info('going to answer to/with %s %s %s', id, register, valueback) # debug
                         res = self.newstatemodify(id,register,valueback)
 
                     else:
                         res = self.statemodify(id, register, value) # only if host id existed in controller
                         if res == 0:
-                            #log.info('statemodify done for', id, register, value)
-                            print('statemodify done for', id, register, value)
+                            log.info('statemodify done for %s %s %s', id, register, value)
                         else:
-                            #log.warning('statemodify FAILED for', id, register, value)
-                            print('statemodify FAILED for', id, register, value)
+                            log.warning('statemodify FAILED for %s %s %s', id, register, value)
                 ress += res
             self.conn.commit() # transaction end
             sendmessage = self.message4host(id, inn) # ack, w newstate
             self.message2host(host, sendmessage)
         else:
-            log.warning('invalid datagram, no id found in', data)
+            log.warning('invalid datagram, no id found in %s', data)
             ress += 1
         return ress
 
@@ -180,13 +173,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         try:
             Cmd="INSERT INTO STATE (register, mac, value, timestamp, due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
-            log.debug(Cmd) # debug
+            log.info(Cmd) # debug
             self.conn.execute(Cmd) # insert, kursorit pole vaja
 
         except:   # UPDATE the existing record
             Cmd="UPDATE STATE SET value='"+str(value)+"',timestamp='"+str(self.ts)+"',due_time='"+str(DUE_TIME)+"' \
             WHERE mac='"+id+"' AND register='"+register+"'"
-            log.debug(Cmd) # debug
+            log.info(Cmd) # debug
             try:
                 self.conn.execute(Cmd) # update, kursorit pole vaja
             except:
@@ -198,20 +191,18 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
     def newstatemodify(self, id, register, value): # received key:value to newstate table
         ''' Commands and setup values to by pairs to newstate table, to be sent regularly '''
         if value == '' or value == None:
-            log.warning('no value for newstate, exiting newstatemodify')
+            log.info('no value for newstate, exiting newstatemodify')
             return 1
-        else:
-            print('newstatemodify with',id,register,value) # debug
-            
+
         try:
             Cmd="INSERT INTO newstate(register,mac,value,timestamp) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"')"
-            log.debug(Cmd)  # debug
+            log.info(Cmd)  # debug
             self.conn.execute(Cmd) # insert, kursorit pole vaja
             return 0
 
         except:   # no updates, insert only
-            log.warning('newstatemodify could not add to newstate, record exists?', id, register, value)
+            log.warning('newstatemodify could not add to newstate %s %s %s', id, register, value)
             return 1
 
 
@@ -254,7 +245,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         answerlines = 0
         for row in self.cursor:
-            #log.info("select for sending to controller newstate left join state row %s", % row)
+            #log.info("select for sending to controller newstate left join state row %s",row)
             register=row[0]
             value=row[1]
             data=data + str(register) + ":" + str(value) + "\n" # cmd or setup message to host in addition to id and inn
@@ -293,7 +284,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         self.conn.commit() # end transaction
 
-        log.info('---answer or command to the host', id, data, 'answerlines',answerlines) # debug
+        log.info("---answer or command to the host %s %s", id, data) # debug
         return data
 
 
