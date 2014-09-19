@@ -128,8 +128,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         sdp = SDP() # datagram instance
         sdp.decode(datagram)
-        
-        
+
         id = sdp.get_data('id')
 
         if id is not None:
@@ -140,14 +139,12 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             Cmd="BEGIN TRANSACTION" #
             self.conn.execute(Cmd)
             for (register, value) in sdp.get_data_list():
-                print('register',register,'value',value) # debug
+                #log.info('line %d %d',i,lines[i]) # debug
                 if register != 'id' and register != 'in':
-                    log.info('received from controller %s key:value %s %s', id,register,value) # debug
-                    if '?' in value: # return the value from state, original suffix added to ? to avoid V
+                    log.info('received from controller %s key:value %s:%s', id,register,value) # debug
+                    if '?' in value: # return the buffered value from state
                         cur = self.conn.cursor() # local!
-                        register= register[:-1]+value[-1]
                         Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
-                        # made LVW from LVV if got LVW:?
                         cur.execute(Cmd)
                         for row in cur:
                             valueback = row[0]
@@ -205,7 +202,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 0
 
         except:   # no updates, insert only
-            log.warning('newstatemodify could not add to newstate %s %s %s, record exists?', id, register, value)
+            log.warning('newstatemodify could not add to newstate %s %s %s', id, register, value)
             return 1
 
 
