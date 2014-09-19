@@ -1,4 +1,4 @@
-''' Message datagram composition and decomposition 
+''' Message datagram composition and decomposition
     according to the Uniscada Service Description Protocol.
 '''
 
