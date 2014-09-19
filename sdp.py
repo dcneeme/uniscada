@@ -12,10 +12,12 @@ class SDP:
         self.data['data'] = {}
         self.data['status'] = {}
         self.data['value'] = {}
+        self.data['query'] = {}
 
     def add_keyvalue(self, key, val):
         ''' Add key:val pair to the packet
 
+        If val is "?", it is saved as a special query
         If key ends with "S", it is saved as a Status (int)
         If key ends with "V", it is saved as a Value (int, float or str)
         If key ends with "W", it is saved as a List of Values (str)
@@ -27,7 +29,9 @@ class SDP:
         :param key: data key
         :param val: data value
         '''
-        if key[-1] == 'S':
+        if val == '?':
+            self.data['query'][key] = '?'
+        elif key[-1] == 'S':
             self.add_status(key[:-1], int(val))
         elif key[-1] == 'V':
             if not isinstance(val, int) and \
@@ -79,7 +83,9 @@ class SDP:
 
         :returns: Status, Value, List of Values, Data or None if key is missing
         '''
-        if key[-1] == 'S':
+        if key in self.data['query']:
+            return '?'
+        elif key[-1] == 'S':
             return self.data['status'].get(key[:-1], None)
         elif key[-1] == 'V':
             val = self.data['value'].get(key[:-1], None)
@@ -115,6 +121,8 @@ class SDP:
                 yield (key + 'V:', str(self.data['value'][key]))
         for key in self.data['data'].keys():
             yield (key, str(self.data['data'][key]))
+        for key in self.data['query'].keys():
+            yield (key, '?')
 
     def encode(self, id=None):
         ''' Encodes SDP packet to datagram
@@ -137,6 +145,8 @@ class SDP:
                 datagram += key + 'W:' + ' '.join(map(str, self.data['value'][key])) + '\n'
             else:
                 datagram += key + 'V:' + str(self.data['value'][key]) + '\n'
+        for key in self.data['query'].keys():
+            datagram += key + ':?\n'
         return datagram
 
     def decode(self, datagram):
