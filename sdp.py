@@ -126,12 +126,12 @@ class SDP:
         Both key and value are always str type.
         '''
         for key in self.data['status'].keys():
-            yield (key + 'S:', str(self.data['status'][key]))
+            yield (key + 'S', str(self.data['status'][key]))
         for key in self.data['value'].keys():
             if isinstance(self.data['value'][key], list):
-                yield (key + 'W:', ' '.join(map(str, self.data['value'][key])))
+                yield (key + 'W', ' '.join(map(str, self.data['value'][key])))
             else:
-                yield (key + 'V:', str(self.data['value'][key]))
+                yield (key + 'V', str(self.data['value'][key]))
         for key in self.data['float'].keys():
             yield (key, self.data['float'][key])
         for key in self.data['data'].keys():
