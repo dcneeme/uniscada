@@ -30,11 +30,9 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         log.info('sdpbuffer: created sqlite connection')
         for table in tables:
             if '*' in table:
-                log.info('multiple tables read follow %s',table) # debug
                 for singletable in glob.glob(self.sqldir+table):
                     self.sqlread(singletable.split('/')[-1].split('.')[0]) # filename without path and extension
             else:
-                #log.info('single table %s',table) # debug
                 self.sqlread(table)
 
 
@@ -49,7 +47,6 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         except:
             msg='FAILURE in opening '+filename+': '+str(sys.exc_info()[1])
             log.warning(msg)
-            #udp.syslog(msg)
             traceback.print_exc()
             return 1
 
@@ -139,9 +136,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             Cmd="BEGIN TRANSACTION" #
             self.conn.execute(Cmd)
             for (register, value) in sdp.get_data_list():
-                #log.info('line %d %d',i,lines[i]) # debug
                 if register != 'id' and register != 'in':
-                    log.info('received from controller %s key:value %s:%s', id,register,value) # debug
+                    log.info('received from controller %s key:value %s:%s', id,register, str(value)) # debug
                     if '?' in value: # return the buffered value from state
                         cur = self.conn.cursor() # local!
                         Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
@@ -152,24 +148,24 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
                         res = self.newstatemodify(id,register,valueback)
 
                     else:
-                        res = self.statemodify(id, register, value) # only if host id existed in controller
+                        res = self.statemodify(id, register, str(value)) # only if host id existed in controller
                         if res == 0:
-                            log.info('statemodify done for %s %s %s', id, register, value)
+                            pass # log.info('statemodify done for %s %s %s', id, register, str(value))
                         else:
-                            log.warning('statemodify FAILED for %s %s %s', id, register, value)
+                            log.warning('statemodify FAILED for %s %s %s', id, register, str(value))
                 ress += res
             self.conn.commit() # transaction end
             sendmessage = self.message4host(id, inn) # ack, w newstate
             self.message2host(host, sendmessage)
         else:
-            log.warning('invalid datagram, no id found in %s', data)
+            log.warning('invalid datagram, no id found!')
             ress += 1
         return ress
 
 
     def statemodify(self, id, register, value): # received key:value to state table
         ''' Received key:value to state table. This is used by comm2state() '''
-        DUE_TIME=self.ts+5 # min pikkus enne kordusi, tegelikult pole vist vaja
+        DUE_TIME=self.ts + 5 # min pikkus enne kordusi, tegelikult pole vist vaja
         try:
             Cmd="INSERT INTO STATE (register, mac, value, timestamp, due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
@@ -202,7 +198,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 0
 
         except:   # no updates, insert only
-            log.warning('newstatemodify could not add to newstate %s %s %s', id, register, value)
+            log.warning('newstatemodify could not add to newstate %s %s %s', id, register, str(value))
             return 1
 
 
@@ -223,36 +219,39 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             return 1
 
 
-    def message4host(self, id, inn = 0): # for one host at the time. inn = msg id to ack, skip for commands
+    def message4host(self, id, inn = None): # for one host at the time. inn = msg id to ack, skip for commands
         ''' Putting together message to a host, just id if used for ack or also data from newstate if present for this host '''
-
-        #cur = self.conn.cursor()
+        newdata = SDP()
+        newdata.add_keyvalue('id', id)
         Cmd="BEGIN TRANSACTION" #
         self.conn.execute(Cmd)
 
-        Cmd="select newstate.register,newstate.value from newstate LEFT join state on newstate.mac = state.mac and \
-        newstate.register=state.register where ( state.value <> newstate.value or newstate.register in \
-        (select register from commands where commands.register = newstate.register)) and  \
-        (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10"
+        Cmd="select newstate.register,newstate.value from newstate LEFT join state on \
+            newstate.mac = state.mac and newstate.register=state.register where \
+            (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10"
 
-        #log.info(Cmd)
-        self.cursor.execute(Cmd)  # read from newstate table
+        try:
+            self.cursor.execute(Cmd)  # read from newstate table
+        except:
+            traceback.print_exc()
 
-        if inn is None:
-            data = "id:" + id + "\n" # alustame vastust id-ga
-        else:
-            data = "id:" + id + "\nin:" + inn + "\n" # saadame ka in tagasi
+        if inn is not None:
+            newdata.add_keyvalue('inn', inn)
 
-        answerlines = 0
+        answerlines = False
         for row in self.cursor:
-            #log.info("select for sending to controller newstate left join state row %s",row)
             register=row[0]
             value=row[1]
-            data=data + str(register) + ":" + str(value) + "\n" # cmd or setup message to host in addition to id and inn
-            answerlines = answerlines + 1
+            newdata.add_keyvalue(register, str(value))
+            answerlines = True
 
-        #retrycount refresh, not needed if no cmd / setup to send
-        if answerlines > 0:
+            Cmd="update newstate set retrycount='1' where mac='" + id + "' and register='" + register + "' and value ='" + str(value) + "'"
+            try:
+                self.conn.execute(Cmd)
+            except:
+                traceback.print_exc()
+
+        if answerlines:
             # retrycount in newstate must be updated
             Cmd ="update newstate \
             SET retrycount = ( \
@@ -284,8 +283,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         self.conn.commit() # end transaction
 
-        log.info("---answer or command to the host %s %s", id, data) # debug
-        return data
+        log.info("---answer or command to the host %s %s", id, newdata) # debug
+        return newdata.encode()
 
 
     def message2host(self, host, data): # actual send based on eval(self.sender)

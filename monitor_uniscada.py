@@ -4,9 +4,9 @@
 
 import time
 import datetime
-from pytz import timezone
-import pytz
-utc = pytz.utc
+#from pytz import timezone
+#import pytz # py3?
+#utc = pytz.utc # py3?
 import sys
 sys.path.append('/root/tornado-3.2/')
 sys.path.append('/root/backports.ssl_match_hostname-3.4.0.2/src')
@@ -61,20 +61,12 @@ class MonitorUniscada:
         self.interval = interval
 
     def sync_tasks(self): # regular checks or tasks
-        log.info("executing sync tasks...")
-        # put here tasks to be executed in 1 s interval
-        # dump tables for example, delete some records etc
-
-        #log.info('hosts', h.listhosts())
+        # put here tasks to be executed in regular intervals
         log.info('state %s', self.b.print_table('state')) # debug
         log.info('newstate %s', self.b.print_table('newstate')) # debug
 
-        #if len(sendqueue) > 0:
-            #sendstring=b.message2host()
-            #u.udpsend(senstring)
-
         if interval > 0:
-            log.info("UPD processing until next sync...")
+            #log.info("UPD processing until next sync...")
             self.ioloop.add_timeout(datetime.timedelta(seconds=self.interval), self.sync_tasks)
 
 
