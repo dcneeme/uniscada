@@ -169,13 +169,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         try:
             Cmd="INSERT INTO STATE (register, mac, value, timestamp, due_time) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"','"+str(DUE_TIME)+"')"
-            log.info(Cmd) # debug
+            log.debug(Cmd)
             self.conn.execute(Cmd) # insert, kursorit pole vaja
 
         except:   # UPDATE the existing record
             Cmd="UPDATE STATE SET value='"+str(value)+"',timestamp='"+str(self.ts)+"',due_time='"+str(DUE_TIME)+"' \
             WHERE mac='"+id+"' AND register='"+register+"'"
-            log.info(Cmd) # debug
+            log.debug(Cmd)
             try:
                 self.conn.execute(Cmd) # update, kursorit pole vaja
             except:
@@ -187,13 +187,13 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
     def newstatemodify(self, id, register, value): # received key:value to newstate table
         ''' Commands and setup values to by pairs to newstate table, to be sent regularly '''
         if value == '' or value == None:
-            log.info('no value for newstate, exiting newstatemodify')
+            log.debug('no value for newstate, exiting newstatemodify')
             return 1
 
         try:
             Cmd="INSERT INTO newstate(register,mac,value,timestamp) VALUES \
             ('"+register+"','"+id+"','"+str(value)+"','"+str(self.ts)+"')"
-            log.info(Cmd)  # debug
+            log.debug(Cmd)  # debug
             self.conn.execute(Cmd) # insert, kursorit pole vaja
             return 0
 
@@ -214,7 +214,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             self.conn.commit()
             return 0
         except:   # no such id
-            log.warning(Cmd) # debug
+            log.debug(Cmd) # debug
             traceback.print_exc() # debug
             return 1
 
@@ -226,10 +226,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
         Cmd="BEGIN TRANSACTION" #
         self.conn.execute(Cmd)
 
-        Cmd="select newstate.register,newstate.value from newstate LEFT join state on \
-            newstate.mac = state.mac and newstate.register=state.register where \
-            (newstate.retrycount < 9 or newstate.retrycount is null) and newstate.mac='" + str(id) + "' limit 10"
-
+        Cmd="select register,value from newstate where \
+            (retrycount < 9 or retrycount is null) and mac='" + str(id) + "' limit 10"
         try:
             self.cursor.execute(Cmd)  # read from newstate table
         except:
