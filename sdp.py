@@ -10,6 +10,7 @@ class SDP:
     def __init__(self):
         self.data = {}
         self.data['data'] = {}
+        self.data['float'] = {}
         self.data['status'] = {}
         self.data['value'] = {}
         self.data['query'] = {}
@@ -18,6 +19,7 @@ class SDP:
         ''' Add key:val pair to the packet
 
         If val is "?", it is saved as a special query
+        If key ends with "F", it is saved as a Float (hex str) - also TOV as legacy!
         If key ends with "S", it is saved as a Status (int)
         If key ends with "V", it is saved as a Value (int, float or str)
         If key ends with "W", it is saved as a List of Values (str)
@@ -31,6 +33,11 @@ class SDP:
         '''
         if val == '?':
             self.data['query'][key] = '?'
+        elif key[-1] == 'F' or key == 'TOV':
+            if isinstance(val, str):
+                self.data['float'][key] = val
+            else:
+                raise Exception('Value _MUST_BE_ hex str type')
         elif key[-1] == 'S':
             self.add_status(key[:-1], int(val))
         elif key[-1] == 'V':
@@ -79,6 +86,7 @@ class SDP:
         :param key: data key
 
         If key ends with "S", it returns a Status (int)
+        Hex float keys end with "F" (or key is "TOV"), returns hex float string
         If key ends with "V", it returns a Value (int, float or str)
         If key ends with "W", it returns a List of Values (list)
         All other keys returns a Data (str)
@@ -87,6 +95,8 @@ class SDP:
         '''
         if key in self.data['query']:
             return '?'
+        elif key[-1] == 'F' or key == 'TOV':
+            return self.data['float'].get(key, None)
         elif key[-1] == 'S':
             return self.data['status'].get(key[:-1], None)
         elif key[-1] == 'V':
@@ -108,6 +118,7 @@ class SDP:
         :returns: Generated (key, val) pair for each variable
 
         Status keys end with "S"
+        Hex float keys end with "F" (except "TOV")
         Value keys end with "V"
         List of values keys end with "W"
         All other keys represent other Data
@@ -121,6 +132,8 @@ class SDP:
                 yield (key + 'W:', ' '.join(map(str, self.data['value'][key])))
             else:
                 yield (key + 'V:', str(self.data['value'][key]))
+        for key in self.data['float'].keys():
+            yield (key, self.data['float'][key])
         for key in self.data['data'].keys():
             yield (key, str(self.data['data'][key]))
         for key in self.data['query'].keys():
@@ -140,6 +153,8 @@ class SDP:
             raise Exception("id missing");
         for key in self.data['data'].keys():
             datagram += key + ':' + str(self.data['data'][key]) + '\n'
+        for key in self.data['float'].keys():
+            datagram += key + ':' + str(self.data['float'][key]) + '\n'
         for key in self.data['status'].keys():
             datagram += key + 'S:' + str(self.data['status'][key]) + '\n'
         for key in self.data['value'].keys():
