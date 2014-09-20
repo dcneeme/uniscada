@@ -42,7 +42,9 @@ class SDP:
         elif key[-1] == 'W':
             if not isinstance(val, str):
                 raise Exception('List of Values _MUST_BE_ string of numbers')
-            self.add_value(key[:-1], list(map(float, val.split(' '))))
+            if val != ' '.join(list(map(str, (list(map(int, val.split(' '))))))):
+                raise Exception('Only integers allowed in List of Values')
+            self.add_value(key[:-1], list(map(int, val.split(' '))))
         else:
             if not isinstance(val, str):
                 raise Exception('Data _MUST_BE_ string')
