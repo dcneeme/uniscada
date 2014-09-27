@@ -27,7 +27,8 @@ logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 from udpcomm import *
-from sdpbuffer import *
+from controllers import Controllers
+from sdpreceiver import SDPReceiver
 
 # Set the socket parameters for communication with the site controllers
 SQLDIR='/srv/scada/uniscada/sqlite/' #  "/data/scada/sqlite" # testimiseks itvilla serveris
@@ -54,16 +55,15 @@ class MonitorUniscada:
         self.port = port
         self.SQLDIR = SQLDIR
         self.tables = tables # tuple
-        self.b = SDPBuffer(SQLDIR, tables) # data into state table and sending out from newstate
-        self.u = UDPComm(self.addr, self.port, self.b.comm2state) # incoming data listening
-        self.b.setcomm(self.u)
+        self.c = Controllers()
+        self.b = SDPReceiver(self.c)
+        self.u = UDPComm(self.addr, self.port, self.b.datagram_from_controller) # incoming data listening
         self.ioloop = tornado.ioloop.IOLoop.instance()
         self.interval = interval
 
     def sync_tasks(self): # regular checks or tasks
         # put here tasks to be executed in regular intervals
-        log.info('state %s', self.b.print_table('state')) # debug
-        log.info('newstate %s', self.b.print_table('newstate')) # debug
+        log.debug(str(self.c))
 
         if interval > 0:
             #log.info("UPD processing until next sync...")
