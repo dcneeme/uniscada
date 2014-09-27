@@ -5,7 +5,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-class SDP:
+class SDP(object):
     ''' Convert to and from SDP protocol datagram '''
     def __init__(self):
         self.data = {}
