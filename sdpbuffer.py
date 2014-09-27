@@ -118,8 +118,6 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
 
     def comm2state(self, host, datagram): # executes also statemodify to update the state table
-        ress=0
-        res=0
         valueback = ''
         self.ts=time.time()
 
@@ -128,40 +126,33 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
 
         id = sdp.get_data('id')
 
-        if id is not None:
-
-            inn = sdp.get_data('in')
-
-            # uuri eraldi data status value(s)
-            Cmd="BEGIN TRANSACTION" #
-            self.conn.execute(Cmd)
-            for (register, value) in sdp.get_data_list():
-                if register != 'id' and register != 'in':
-                    log.info('received from controller %s key:value %s:%s', id,register, str(value)) # debug
-                    if '?' in value: # return the buffered value from state
-                        cur = self.conn.cursor() # local!
-                        Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
-                        cur.execute(Cmd)
-                        for row in cur:
-                            valueback = row[0]
-                        log.info('going to answer to/with %s %s %s', id, register, valueback) # debug
-                        res = self.newstatemodify(id,register,valueback)
-
-                    else:
-                        res = self.statemodify(id, register, str(value)) # only if host id existed in controller
-                        if res == 0:
-                            pass # log.info('statemodify done for %s %s %s', id, register, str(value))
-                        else:
-                            log.warning('statemodify FAILED for %s %s %s', id, register, str(value))
-                ress += res
-            self.conn.commit() # transaction end
-            sendmessage = self.message4host(id, inn) # ack, w newstate
-            self.message2host(host, sendmessage)
-        else:
+        if id is None:
             log.warning('invalid datagram, no id found!')
-            ress += 1
-        return ress
+            return
 
+        inn = sdp.get_data('in')
+
+        # uuri eraldi data status value(s)
+        Cmd="BEGIN TRANSACTION" #
+        self.conn.execute(Cmd)
+        for (register, value) in sdp.get_data_list():
+            if register != 'id' and register != 'in':
+                log.info('received from controller %s key:value %s:%s', id,register, str(value)) # debug
+                if '?' in value: # return the buffered value from state
+                    cur = self.conn.cursor() # local!
+                    Cmd="select value from state where mac='"+id+"' and register='"+register+"'"
+                    cur.execute(Cmd)
+                    for row in cur:
+                        valueback = row[0]
+                    log.info('going to answer to/with %s %s %s', id, register, valueback) # debug
+                    self.newstatemodify(id,register,valueback)
+
+                else:
+                    self.statemodify(id, register, str(value)) # only if host id existed in controller
+
+        self.conn.commit() # transaction end
+        sendmessage = self.message4host(id, inn) # ack, w newstate
+        self.message2host(host, sendmessage)
 
     def statemodify(self, id, register, value): # received key:value to state table
         ''' Received key:value to state table. This is used by comm2state() '''
@@ -179,10 +170,8 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             try:
                 self.conn.execute(Cmd) # update, kursorit pole vaja
             except:
+                log.warning('statemodify FAILED for %s %s %s', id, register, str(value))
                 traceback.print_exc()
-                return 1
-        return 0
-
 
     def newstatemodify(self, id, register, value): # received key:value to newstate table
         ''' Commands and setup values to by pairs to newstate table, to be sent regularly '''
