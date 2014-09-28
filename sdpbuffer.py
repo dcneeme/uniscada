@@ -1,6 +1,6 @@
 #sdpbuffer.py
 ''' Buffer to store messages in Uniscada Service Description Protocol
-    (key:value pairs on separate lines, one pair in the datagaram must contain id:<host_id>,
+    (key:value pairs on separate lines, one pair in the datagram must contain id:<host_id>,
     keys in a datagram are unique and represent either status or value(s) of a service
     or multiple services,related to the same site controller (host).
     Key for status ends with S, value contain one number (status) from 0 to 2.
@@ -223,7 +223,7 @@ class SDPBuffer: # for the messages in UniSCADA service description protocol
             traceback.print_exc()
 
         if inn is not None:
-            newdata.add_keyvalue('inn', inn)
+            newdata.add_keyvalue('in', inn)
 
         answerlines = False
         for row in self.cursor:
