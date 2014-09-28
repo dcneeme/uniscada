@@ -35,6 +35,8 @@ class UDPComm(object): # object on millegiparast vajalik
         (data, addr) = sock.recvfrom(4096)
         log.debug("got UDP " + str({ "from": addr, "msg": str(data) }))
         host = Host(self, addr)
+        if not isinstance(data, str):
+            data = data.decode("UTF-8")
         self.handler(host, data)
 
     def send(self, addr, sendstring = ''):
@@ -46,9 +48,11 @@ class UDPComm(object): # object on millegiparast vajalik
             log.info("send(): nothing to send!")
             return 0
         log.debug("send going to send to %s: %s", str(addr), sendstring)
+        if isinstance(sendstring, str):
+            sendstring = sendstring.encode(encoding='UTF-8')
         try:
             sendlen = self._sock.sendto(sendstring, addr)
-            log.debug('sent ack to '+str(repr(addr))+' '+sendstring.replace('\n',' '))
+            log.debug('sent ack to '+str(repr(addr))+' '+str(sendstring).replace('\n',' '))
             return sendlen
         except:
             traceback.print_exc() # debug
