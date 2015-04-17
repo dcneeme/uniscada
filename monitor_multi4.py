@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#paaris ja paaritu sekundil saabunud datagramid kirjutatakse erinevatesse nagiosele baasidesse!
+#paaris ja paaritu sekundil saabunud datagrammid kirjutatakse erinevatesse nagiosele baasidesse!
 
 # yldiselt uuendatakse siin sqlite monitor state tabelit ja saadetakse vastus sissetulevale paketile, lisades vastusele ka voimalik ootel info newstate tabelis. 
 # viimane muudatus vt allpool logis
@@ -38,6 +38,7 @@
 # 26.10.2013 service_alias teisends ei toimi!!! tundub et laks kaduma koos svc_add tegemisega, saehammastega. nyyd korras!
 # 07.02.2013 svcadd_calc ajas jama... tootlused teha PEALE teenuse tootlemisvajaduse avastamist , float problem
 # 21.06.2014 svcadd_calc()  voimalike liikmete arvu suurendamine 8-> 15, tartulv vajadustest lahtudes. voiks hoopis append kasutada..
+# 11.10.2014
 
 # !!! esineb seni lahendamata probleem - leitud 09.02.2014. kui statusreg sisu rikkuda, naiteks 0 asemel kirj sisse 0DCV, siis seda yle ei kirjutata ja file2nagiosed 
 #  selle registriga seotud teenusele edaspidi ebaonnestuvad!!! monitooringus unknown, kuigi kontroller saadab korrektselt. siis vaata bnstate abil, mida state sisaldab!
@@ -244,7 +245,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
             #print 'hakkame nagiosele tabelisse salvestama' # ajutine
             
             Cmd="insert into nagiosele(mac,nagios_ip,svc_name,status,value,desc,timestamp,conv_coef,out_unit,location,step,due_time,val_reg,multiperf,multivalue) \
-            values('"+id+"','"+MONIP+"','"+SVC_NAME+"','"+str(STATUS)+"','"+VALUE+"','"+DESCR+"','"+str(MONTS)+"','"+str(DIV)\
+            values('"+id+"','"+MONIP+"','"+SVC_NAME+"','"+str(STATUS)+"','"+VALUE+"','"+DESCR+"','"+str(MONTS)+"','"+str(DIV) \
             +"','"+UNIT+"','"+MONLOC+"','"+str(step)+"','"+str(DUE_TIME)+"','"+VAL_REG+"','"+str(MULTIPERF)+"','"+str(MULTIVALUE)+"')" # None puhul ebaonnestub Cmd koostamine kui str() ei kasuta
             #print Cmd # ajutine abi ####
        
@@ -261,6 +262,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                         conn2.execute(Cmd) # see peab onnestuma sama moodi kui nagiosele
                         
                 except:
+                    print('!!insert2nagiosele '+locregister+' insert error Cmd ',Cmd) # voib olla ka normaalne
                     #print "see rida on juba nagiosele tabelis olemas, teenus ",SVC_NAME,", teeme update" # ajutine abi
                     Cmd="update nagiosele set status='"+str(STATUS)+"', value='"+VALUE+"' where svc_name='"+SVC_NAME+"' and mac='"+id+"'"
                     #print Cmd # ajutine abi
@@ -275,6 +277,8 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                             conn2.execute(Cmd) # see peab onnestuma kui nagiosele update onnestus
                         
                     except:
+                        error=str(traceback.print_exc())
+                        print('!!!nagiosele insert and update error!!!',error)
                         traceback.print_exc()
             
             else: # teine bnum
@@ -326,8 +330,12 @@ def file4nagios(locreg):  # registrite massiiv parameetriks
     for i in range(len(locreg)): # kui siia on saadetud, siis paneme ta ka nagiosele tabelisse, rohkem kontrollimata.
         register = locreg[i] # 
         #value leiab insert2nagiosele ise
-        insert2nagiosele(register) 
-                            
+        try:
+            insert2nagiosele(register) 
+        except:
+            #error=str(traceback.print_exc()) # tagastab None
+            print('!!!insert2nagiosele failure!!! register',register)
+            traceback.print_exc()
                             
     conn3.commit() # trans lopp - millise?nagiosele... seda ju ei kasuta?
     conn2.commit() # ViimaneTehing jm log. ilma selleta db locked. teeme alati, kuigi vaid siis vaja kui logitav teenus oli...
@@ -628,6 +636,14 @@ def svcadd_calc(register,value,mac): # arvutame kumulatiivse alusel loodud lisat
     return outsvcnames,outsvcvalues # osa vaartusi asendati, ylejaanud ''
     
 # svcadd_calc lopp, perioodi kohta juurdekasvude genereerimine yhe kumulatiivse teenuse alusel
+
+    
+def localcopy(data): # testimiseks koopia teise porti
+    addr_port=('127.0.0.1',44444)  
+    localsocket.sendto(data,addr_port)
+    print "udp localcopy-->",addr,data
+    
+    
     
     
 # ### protseduuuride defineerimise lopp ############################################ 
@@ -642,11 +658,7 @@ def svcadd_calc(register,value,mac): # arvutame kumulatiivse alusel loodud lisat
 # #################### MAIN ###################################
 # #############################################################
 
-        
-#conn.create_function("SendToNagios",5,SendToNagios)
-#conn.create_function("SendToNagios",4,SendToNagios)
-# allpool seda ei kasutata, vt sqlite3 trigerit .schema abil
-
+localsocket = socket(AF_INET,SOCK_DGRAM)
 
 # Receive messages
 while 1:
@@ -668,6 +680,8 @@ while 1:
         if "id:" in data:
             lines=data[data.find("id:")+3:].splitlines()   # vaikesed tahed
 
+            localcopy(data) # send to local port 44444, for testing purposes
+            
             # mac aadress
             id=lines[0] # mac
             #print "id",id   # seda korratakse allpool nagunii

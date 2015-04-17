@@ -1,3 +1,5 @@
+# linkida nimele nagiosele32_1.py, sys.argv[0] jagab edasi. viimane muudatus 15.04.2015 neeme
+
 # saadame tabelist nagiosele1 SOOME SERVERIS sonumid nagiosse, vajadusel ka mitu vaartust yhe teenuse kohta 
 # SELLE voib debugimiseks ka paralleelselt teise nagiosele scriptiga kaima lasta! jagavad tabeli 'nagiosele' kirjeid nagu juhtub.
 # aga siis peaks mac alusel filtreerima et mitte koikide hostide graafikuid rikkuda... kommenteeri sendnagios line 338
@@ -68,7 +70,10 @@ except:
     
 try:
     #conn = sqlite3.connect('/srv/scada/sqlite/nagiosele1',2) # monitor1 on main db. timeout 2 s (default on 5)
-    conn = sqlite3.connect('/srv/scada/sqlite/nagiosele0',2) # monitor1 on main db. timeout 2 s (default on 5)
+    if '_0' in sys.argv[0]:
+        conn = sqlite3.connect('/srv/scada/sqlite/nagiosele0',2) # timeout 2 s (default on 5)
+    else:
+        conn = sqlite3.connect('/srv/scada/sqlite/nagiosele1',2) # timeout 2 s (default on 5)
     conn.text_factory = str # tapitahtede karjumise vastu, baasis iso8850-1
 except:
     traceback.print_exc()
@@ -112,16 +117,20 @@ def send_nsca(mac,svc_name,status,desc_perf):
     #print channel.read(1024) # tagasi ei saada midagi, ei huvita. aga kui miskit tuleb, voib viga olla!
 
     
-def send_ssh2(send_ssh_string):
-    #exec_cmd="/srv/scada/scripts/send2nagios.sh '"+trig_mac+"' '"+trig_register+"' '"+trig_old_value+"' '"+trig_new_value+"'"
-    #exec_cmd='echo -e "+send_ssh_string+" | ssh nagios@nagios.itvilla.com "cat >> /var/lib/nagios3/rw/nagios.cmd"' # nii ei saa!
-    exec_cmd='/srv/scada/bin/send_ssh.sh "'+send_ssh_string+'"'
+def send_ssh2(send_string):
+    exec_cmd='/srv/scada/bin/send_ssh.sh "'+send_string+'"'
     subprocess.call([exec_cmd],shell=True)  # executing shell script forking other scripts
-    print send_ssh_string
+    print 'ssh', send_ssh_string
     return 0
     
     
-    
+def send_http(send_string):
+    exec_cmd='/srv/scada/bin/send_http.sh "'+send_string+'"'
+    subprocess.call([exec_cmd],shell=True) # executing shell script forking other scripts
+    print 'http', send_ssh_string
+    return 0
+ 
+ 
     
 def floatfromhex(hex):
 
@@ -467,6 +476,10 @@ def tegutseme():
 
             #send_ssh(send_ssh_string) # yhe stringina teele yle libssh2
             send_ssh2(send_ssh_string) # nagiosele saatmine subprocess call kaudu, lihtsam oli kaima saada...
+            
+            if '000101300' in mac: # https copy to codeborne
+                send_http(send_ssh_string)
+                
             send_ssh_string="" # tyhjaks. peaks ehk proovima exit statuse alusel kas onnestus saatmine?
             
         except:
@@ -503,7 +516,7 @@ while 1:
             
         if ts != None:
             #print "baasis nagiosele1 max timestamp ",ts, "ridu",ridu
-            print "baasis nagiosele0 max timestamp ",ts, "ridu",ridu
+            #print "baasis nagiosele0 max timestamp ",ts, "ridu",ridu
             try:
                 time.sleep(0.2) # anname aega xxV / xxS paaride moodustumiseks
                 if tegutseme() < 0:
@@ -516,7 +529,7 @@ while 1:
         
         else:
             #print "baas nagiosele1 tyhi"
-            print "baas nagiosele0 tyhi"
+            print sys.argv[0],"baas nagioseleX tyhi"
             #traceback.print_exc()  # ajutine abi
             
     except:
