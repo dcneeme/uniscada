@@ -82,7 +82,7 @@ conn.execute("PRAGMA synchronous=0")  # et kiirem oleks ja kogu aeg ei kirjutaks
 #conn.execute("PRAGMA read_uncommitted=1")  # et kiirem oleks ja kogu aeg ei kirjutaks kettale
 
 send_ssh_string="" # globaalne muutuja nagiosele saatmiseks
-
+send_http_string = '' # to codeborne karla 
 
 
 # ### protseduuuride defineerimine ######################
@@ -146,7 +146,7 @@ def floatfromhex(hex):
 
 
 def tegutseme():
-    global send_ssh_string # ports teateid reavahetustega eraldatud
+    global send_ssh_string, send_http_string # ports teateid reavahetustega eraldatud
     
     send_list=[] # passive chk udp, kahtlus et osa infot laheb kaduma... ip: , text:
     send_nsca_list=[] # tcp nsca protokoll passive chk jaoks, peaks parem olema. mac: , svc_name: , status: , desc_perf:
@@ -210,6 +210,9 @@ def tegutseme():
                 out_unit2="%"  # toru taha
                 print "out_unit asendus", out_unit2
             
+            elif out_unit == '':
+                out_unit2 = '_' # et yhikuta graafikud kohakuti ajada teistega
+                
             else:
                 out_unit2=out_unit # seda kasutame perf datas mitte desc sees
             
@@ -270,11 +273,13 @@ def tegutseme():
                                     servalueS=servalueS+sername+"="
                                 else: # normaalne number
                                     servalue=c.create_decimal(str(float(servalue)/float(conv_coef)))
-                                    servalueS=servalueS+sername+"="+ "%.2F" % servalue+out_unit # +" "  # jarjekordne vorduse a la 'Seeria=0.50m'
+                                    #servalueS=servalueS+sername+"="+ "%.2F" % servalue+out_unit # +" "  # jarjekordne vorduse a la 'Seeria=0.50m'
+                                    servalueS=servalueS+sername+"="+ "%.2F" % servalue+out_unit2 # alakriips yhiku puudumisel
                                 #print 'servalueS tulemus praegu',servalueS # ajutine
 
-                        except: # tundub et multi olek, sest konverteerida pole vaja
-                            servalueS=servalueS+sername+"="+str(servalue)  # liidame jargmise seeria, kusjuures olekule yhikut pole vaja 
+                        except: # tundub et multi olek, sest conv_coef PUUDUB
+                            #servalueS=servalueS+sername+"="+str(servalue)  # liidame jargmise seeria, kusjuures olekule yhikut pole vaja 
+                            servalueS=servalueS+sername+"="+str(servalue)+out_unit2  # liidame jargmise seeria, kusjuures olekule yhikut pole vaja 
                             #print 'KONVERTEERIDA POLE VAJA' # ajutine
 
                         perfdata=perfdata+servalueS+" "  # MULTI PERF LOPP # lisame servalueS perfdata loppu, servalueS muutujat voib uuesti kasutada        
@@ -379,7 +384,7 @@ def tegutseme():
                     
                         
                 else: # conv_coef puudub voi on 0, tavaline teenus, perfdatasse status, yhikut ei ole
-                    perfdata=svc_name+"="+str(status)
+                    perfdata=svc_name+"="+str(status)+str(out_unit2) # alakriips yhikuks, et kohakuti graafikud saada
                     #print 'value oli tyhi, seega perfdatasse status'
 
             
@@ -439,6 +444,8 @@ def tegutseme():
             #send_list.append({"ip":nagios_ip,"text":nagstring}) # konfitud serverisse voimasliku TS infoga perfdatas
             #send_nsca_list.append({"mac":mac,"svc_name":svc_name,"status":status,"desc_perf":desc_perf}) # mac: , svc_name: , status: , desc_perf:
             send_ssh_string=send_ssh_string+nagstring # teeme yhe suure stringi mille ssh ara saadan yhe korraga
+            if '000101300' in mac: # codeborne karla info
+                send_http_string += nagstring # http kaudu saatmiseks
             
     except:
         traceback.print_exc()  # valitud teenustega tegutsemise lopp 
@@ -477,10 +484,11 @@ def tegutseme():
             #send_ssh(send_ssh_string) # yhe stringina teele yle libssh2
             send_ssh2(send_ssh_string) # nagiosele saatmine subprocess call kaudu, lihtsam oli kaima saada...
             
-            if '000101300' in mac: # https copy to codeborne
-                send_http(send_ssh_string)
+            if len(send_http_string) > 10:
+                send_http(send_http_string)  # to codeborne
                 
-            send_ssh_string="" # tyhjaks. peaks ehk proovima exit statuse alusel kas onnestus saatmine?
+            send_ssh_string = "" # tyhjaks. peaks ehk proovima exit statuse alusel kas onnestus saatmine?
+            send_http_string = '' #tyhjaks
             
         except:
             exit_status=-1
