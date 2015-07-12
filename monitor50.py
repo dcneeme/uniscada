@@ -36,7 +36,7 @@ import string
 # Set the socket parameters
 host = "46.183.73.35"  #  "212.47.221.86" # "195.222.15.51"
 SQLDIR="/data/scada/sqlite"
-port = 44440 # 44440 ## testimiseks 44444, pane parast 44445
+port = 44445 # 44440 ## testimiseks 44444, pane parast 44445
 if len(sys.argv) > 1: # ilmselt ka port antud siis
     port = int(sys.argv[1]) # muidu jaab default value 44445
     print 'udp port set to',port
