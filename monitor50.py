@@ -3,7 +3,7 @@
 #lisaks kasutame vaid yhte nagiosele tabelit, olgu 0. v multi4c
 # TEHTUD mitme samanimelise teenuse kirjutamist nagiosele tabelisse eri ajamarkidega!
 # INfound kasutusel kontrolleri aja kasutamiseks
-# TEHA multi in kasutus ajaloo taastamiseks
+# 13.07.2015 mitme in saatmisel yhes datagrammis kajastab nagd vaid esimest!!! indexit ei ole. uuri!
 
 
 
@@ -36,7 +36,7 @@ import string
 # Set the socket parameters
 host = "46.183.73.35"  #  "212.47.221.86" # "195.222.15.51"
 SQLDIR="/data/scada/sqlite"
-port = 44445 # 44440 ## testimiseks 44444, pane parast 44445
+port = 44440 # 44440 ## testimiseks 44444, pane parast 44445
 if len(sys.argv) > 1: # ilmselt ka port antud siis
     port = int(sys.argv[1]) # muidu jaab default value 44445
     print 'udp port set to',port
@@ -77,7 +77,7 @@ try:
     conn2 = sqlite3.connect(SQLDIR+'/servicelog',1) # oli id_log jaoks, nyyd viimanetehing jms
     conn3 = sqlite3.connect(SQLDIR+'/alias',1) # tabel alias
     conn30 = sqlite3.connect(SQLDIR+'/nagiosele0',1) # tabel nagiosele, paaris sekunditel
-    conn31 = sqlite3.connect(SQLDIR+'/nagiosele1',1) # tabel nagiosele, paaritud sekundid
+    #conn31 = sqlite3.connect(SQLDIR+'/nagiosele1',1) # tabel nagiosele, paaritud sekundid
     conn.text_factory = str # tapitahtede karjumise vastu, baasis muide iso8850-1
 
 except:
@@ -120,8 +120,9 @@ def datasplit(data, addr): # split the incoming datagram into in- related pieces
 
     dataout = []
     inns = []
+    incount = 0
     if "id:" in data:
-        lines=data[data.find("id:")+3:].splitlines()
+        lines = data[data.find("id:")+3:].splitlines()
         id = lines[0]
         incount = len(data.split('in:')) - 1 # 0 if n is missing
         
@@ -138,9 +139,10 @@ def datasplit(data, addr): # split the incoming datagram into in- related pieces
         else:
             dataout.append(data)
             print "got incoming message from controller id",id, 'no splitting due to one or no in'  
-            inpos = data.find('in:')
-            inn = data[inpos + 3:].splitlines()[0]
-            inns.append(inn) # kontrollerile needs inns
+            if incount > 0:
+                inpos = data.find('in:')
+                inn = data[inpos + 3:].splitlines()[0]
+                inns.append(inn) # kontrollerile needs inns
             
         kontrollerile(id, inns, addr) # ack now, possibly w multple in values
         return dataout # list
@@ -153,7 +155,7 @@ def datasplit(data, addr): # split the incoming datagram into in- related pieces
 # salvestame nagiosele tabelisse yhe registri korraga (aga transaktsiooni sees!)
 def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omadused otsib ise. samuti ka selle, kas on value voi status.
     global MONTS, INfound # viimane ytleb kas timestampi jalgida, kas value ja status yhes datagrammis voi ei. nagiosele saatmiseks peavad molemad olemas olema!
-    #print "*** insert2nagiosele start for",locregister ## ajutine debug
+    print "*** insert2nagiosele start for",locregister ## ajutine debug
     SVC_NAME = ""
     STA_REG = ""
     VAL_REG = ""
@@ -284,7 +286,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                     conn2.execute(Cmd) # see peab onnestuma sama moodi kui nagiosele
 
             except:
-                #print "see rida on juba nagiosele tabelis olemas, teenus ",SVC_NAME,", teeme update, INfound ",str(INfound) ## ajutine abi
+                print "see rida on nagiosele tabelis olemas, teenus ",SVC_NAME,MONTS,", update, INfound ",str(INfound) ## ajutine abi
                 if INfound == 0:
                     Cmd="update nagiosele set status='"+str(STATUS)+"', value='"+VALUE+"' where svc_name='"+SVC_NAME+"' and mac='"+id+"'"
                 else:
@@ -321,17 +323,14 @@ def file4nagios(locreg):  # registrite massiiv parameetriks, yhine MONTS olgu
     #global bnum
     print 'file4nagios, parameetriks registrinimede massiiv locreg =',locreg # ajutine debug
     Cmd="BEGIN IMMEDIATE TRANSACTION" # iga datagrami jaoks oma transaction database nagiosele jaoks!
-    if bnum == 0:
-        conn30.execute(Cmd)  # alustame transaktsiooni nagiosele baasiga
-    else:
-        conn31.execute(Cmd)  # alustame transaktsiooni nagiosele baasiga
-
-
+    conn30.execute(Cmd)  # alustame transaktsiooni nagiosele baasiga
+    
     for i in range(len(locreg)): # kui siia on saadetud, siis paneme ta ka nagiosele tabelisse, rohkem kontrollimata.
         register = locreg[i] #
         #value leiab insert2nagiosele ise
         try:
             insert2nagiosele(register)
+            print 'insert2nagiosele done for register',register ##
         except:
             #error=str(traceback.print_exc()) # tagastab None
             print('!!!insert2nagiosele failure!!! register',register)
@@ -339,12 +338,8 @@ def file4nagios(locreg):  # registrite massiiv parameetriks, yhine MONTS olgu
 
     conn3.commit() # trans lopp - millise?nagiosele... seda ju ei kasuta?
     conn2.commit() # ViimaneTehing jm log. ilma selleta db locked. teeme alati, kuigi vaid siis vaja kui logitav teenus oli...
-    #if bnum == 0:
     conn30.commit()  # lopetame transaktsiooni sel korral taidetud nagiosele baasiga 0
-    #else:
-    #    conn31.commit()  # lopetame transaktsiooni sel korral taidetud nagiosele baasiga 1
-
-
+    print 'insert2nagiosele done'
     return 0  # file4nagios lopp
 
 
@@ -467,8 +462,8 @@ def kontrollerile(id,inn,addr): # uurime vastuse voimalikkust ja tekitame newsta
 
     sdata = "id:" + id + "\n"
     for ins in inn:
-        sdata +=  "in:" + ins + "\n" # mitu in yhes sonumis kontrollerile
-    print 'kontrollerile', sdata
+        sdata +=  "in:" + ins + "\n" # mitu in yhes sonumis kontrollerile. no ading if no members in inn!
+    print 'ack kontrollerile', sdata
 
     answerlines = 0
     for row in cursor:
