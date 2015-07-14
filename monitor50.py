@@ -36,7 +36,7 @@ import string
 # Set the socket parameters
 host = "46.183.73.35"  #  "212.47.221.86" # "195.222.15.51"
 SQLDIR="/data/scada/sqlite"
-port = 44440 # 44440 ## testimiseks 44444, pane parast 44445
+port = 44445 # 44440 ## testimiseks 44444, pane parast 44445
 if len(sys.argv) > 1: # ilmselt ka port antud siis
     port = int(sys.argv[1]) # muidu jaab default value 44445
     print 'udp port set to',port
@@ -100,7 +100,7 @@ cursor3=conn3.cursor() # lisatud 07.12.2011 . kasutame aliase lugemise jaoks
 
 
 def datasplit(data, addr): # split the incoming datagram into in- related pieces
-    ''' tykeldab monitor50.py jaoks mitme in keyvaluega datagrammi
+    ''' tykeldab monitor50.py jaoks mitme in keyvaluega datagrammi. igasse juppi ka id!
 
         >>> data='id:123\nin:1,2\nI1W:1 1\nI1S:0\nin:2,3\nI1W:2 2\nI1S:1\nin:3,4\nI1W:3 3\nI1S:1\n'
         >>> datasplit(data5)
@@ -132,7 +132,7 @@ def datasplit(data, addr): # split the incoming datagram into in- related pieces
                 inn = data[inpos + 3:].splitlines()[0]
                 inns.append(inn) # multi-in can be
                 appdata = 'id:'+id+'\nin:'+data.split('in:')[1]
-                #print i,appdata
+                print 'datasplit',i,appdata
                 dataout.append(appdata)
                 data = data[inpos+4+len(inn):] # in tagune osa
             print "got incoming message from controller id",id, 'splitted into',incount,len(dataout),'pieces'  
@@ -155,7 +155,7 @@ def datasplit(data, addr): # split the incoming datagram into in- related pieces
 # salvestame nagiosele tabelisse yhe registri korraga (aga transaktsiooni sees!)
 def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omadused otsib ise. samuti ka selle, kas on value voi status.
     global MONTS, INfound # viimane ytleb kas timestampi jalgida, kas value ja status yhes datagrammis voi ei. nagiosele saatmiseks peavad molemad olemas olema!
-    print "*** insert2nagiosele start for",locregister ## ajutine debug
+    #print "*** insert2nagiosele start for",locregister ## ajutine debug
     SVC_NAME = ""
     STA_REG = ""
     VAL_REG = ""
@@ -277,7 +277,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
             ##if bnum == 0:
             try:
                 conn30.execute(Cmd) # nagiosele, KUI EI SAA, siis allpool update, muidu hilineb hiljem saabunud paarilise nagiossse saatmine
-                print locregister,bnum,"->",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR
+                print locregister,MONTS,"->",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR
                 # nyyd voib lisada teatud teenuseid logisse eraldi tabelitesse
                 if SVC_NAME == "ViimaneTehing": # servicelog faili tabelisse ViimaneTehing
                     Cmd="insert into "+SVC_NAME+"(mac,nagios_ip,status,value,timestamp,location) \
@@ -286,7 +286,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                     conn2.execute(Cmd) # see peab onnestuma sama moodi kui nagiosele
 
             except:
-                print "see rida on nagiosele tabelis olemas, teenus ",SVC_NAME,MONTS,", update, INfound ",str(INfound) ## ajutine abi
+                #print "see rida on nagiosele tabelis olemas, teenus ",SVC_NAME,MONTS,", update, INfound ",str(INfound) ## ajutine abi
                 if INfound == 0:
                     Cmd="update nagiosele set status='"+str(STATUS)+"', value='"+VALUE+"' where svc_name='"+SVC_NAME+"' and mac='"+id+"'"
                 else:
@@ -297,7 +297,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                 #print Cmd ## ajutine abi
                 try:
                     conn30.execute(Cmd) # uuendame andmeid hiljem saabunud paarilisega, olgu siis status voi value
-                    print locregister,"->>",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR   # update onnestus
+                    print locregister,MONTS,"->>",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR   # update onnestus
                     # samad teenused mis insert korral proovitud nyyd ka siin update teha
                     if SVC_NAME == "ViimaneTehing": # parkpay
                         Cmd="update "+SVC_NAME+" set status='"+str(STATUS)+"', value='"+VALUE+"' where mac='"+id+"' and timestamp='"+str(MONTS)+"'"
@@ -322,25 +322,31 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
 def file4nagios(locreg):  # registrite massiiv parameetriks, yhine MONTS olgu
     #global bnum
     print 'file4nagios, parameetriks registrinimede massiiv locreg =',locreg # ajutine debug
-    Cmd="BEGIN IMMEDIATE TRANSACTION" # iga datagrami jaoks oma transaction database nagiosele jaoks!
-    conn30.execute(Cmd)  # alustame transaktsiooni nagiosele baasiga
+    try:
+        Cmd="BEGIN IMMEDIATE TRANSACTION" # iga datagrami jaoks oma transaction database nagiosele jaoks!
+        conn30.execute(Cmd)  # alustame transaktsiooni nagiosele baasiga
     
-    for i in range(len(locreg)): # kui siia on saadetud, siis paneme ta ka nagiosele tabelisse, rohkem kontrollimata.
-        register = locreg[i] #
-        #value leiab insert2nagiosele ise
-        try:
-            insert2nagiosele(register)
-            print 'insert2nagiosele done for register',register ##
-        except:
-            #error=str(traceback.print_exc()) # tagastab None
-            print('!!!insert2nagiosele failure!!! register',register)
-            traceback.print_exc()
+        for i in range(len(locreg)): # kui siia on saadetud, siis paneme ta ka nagiosele tabelisse, rohkem kontrollimata.
+            register = locreg[i] #
+            #print 'starting insert2nagiosele for register',register ##
+            #value leiab insert2nagiosele ise
+            try:
+                insert2nagiosele(register)
+                #print 'insert2nagiosele done for register',register ##
+            except:
+                #error=str(traceback.print_exc()) # tagastab None
+                print('!!!insert2nagiosele failure!!! register',register)
+                traceback.print_exc()
 
-    conn3.commit() # trans lopp - millise?nagiosele... seda ju ei kasuta?
-    conn2.commit() # ViimaneTehing jm log. ilma selleta db locked. teeme alati, kuigi vaid siis vaja kui logitav teenus oli...
-    conn30.commit()  # lopetame transaktsiooni sel korral taidetud nagiosele baasiga 0
-    print 'insert2nagiosele done'
-    return 0  # file4nagios lopp
+        conn3.commit() # trans lopp - millise?nagiosele... seda ju ei kasuta?
+        conn2.commit() # ViimaneTehing jm log. ilma selleta db locked. teeme alati, kuigi vaid siis vaja kui logitav teenus oli...
+        conn30.commit()  # lopetame transaktsiooni sel korral taidetud nagiosele baasiga 0
+        #print 'insert2nagiosele done'
+        return 0
+    except:
+        print 'file4nagios FAILED!!'
+        traceback.print_exc()
+        return 1  # file4nagios lopp
 
 
 
@@ -673,12 +679,9 @@ while 1:
 
         indata = datasplit(datagram, addr) # split the incoming datagram into in-related pieces
         for data in indata: # splits into pieces with id and in if the latter exists
+            print "processing data block from controller:", repr(data)
             if "id:" in data:
                 lines=data[data.find("id:")+3:].splitlines()   # vaikesed tahed
-
-                #localcopy(data) # send to apiserver, now inside datasplit()
-
-                # mac aadress
                 id = lines[0] # mac
                 #print " got incoming datagram (part) from controller id",id   # seda korratakse allpool nagunii
 
@@ -690,16 +693,15 @@ while 1:
                             MONTS = int(inn.split(',')[1]) # replace MONTS with controller time!
                             INfound = 1 # kontrolleri ts kasutusel, value ja status koos yhes datagrammis
                             print('... MONTS replaced with controller time '+str(MONTS))
-
+                    else:
+                        if int(inn) > 1432645565:
+                            MONTS = int(inn) # the whole in can be a timestamp as well!
+                        
                 NEWSOCKET = addr[0]+","+str(addr[1]) # ip,port kust tuli
                 #print "newsocket ",NEWSOCKET  # salvestamiseks controller tabelis vaja
 
-                print "\nprocessing data from controller",id, t, "in", inn  # addr   # got the data, start printing lines content
-                print str(repr(data)) # naita saabunud registrite sisu
-                #registration[id] = addr
-
-                #print "registration dict=",registration[id]
-
+                print "\nprocessing data from controller",id, t, ", in:", inn, str(repr(data))
+                
 
                 MONLOC=""
                 SOCKET=""
@@ -720,7 +722,7 @@ while 1:
                 cursor.close() # voib ka mitte teha
 
                 if (MONLOC<>""):  # asukoht controller tabelis olemas
-                    print "\n processing data from",id,MONLOC,NEWSOCKET,str(t) # str(datetime.datetime.now()) # alustame logis uut portsu
+                    pass # print "\n processing data from",id,MONLOC,NEWSOCKET,str(t) # str(datetime.datetime.now()) # alustame logis uut portsu
                 else:
                     print "non-registered controller mac",id
 
@@ -921,9 +923,9 @@ while 1:
 
                 try:
                     conn.commit()  # monitor transaktsiooni lopp
-                    #print "oleme state tabelis registrid ara muutnud! statemodify osa on edukalt loppenud" ##
+                    print "data transaction end, inn",inn, "MONTS",MONTS ##
                 except:
-                    print "mingi commit jama enne??"
+                    print "PROBLEM! mingi commit jama??"
                     traceback.print_exc()
                     sys.stdout.flush() # et kohe logis naha oleks
                     time.sleep(1)
@@ -932,23 +934,21 @@ while 1:
 
 
 
-                if (MONLOC==""):
+                if (MONLOC == ""):
                     print "mac "+id+" (location) puudub tabelist controller!!" # ei saada nagiosele
 
                 else:
                     #print 'kaivitame file4nagios parameetrimassiiviga reg ',reg # ajutine. anname registrinimede masiivi kaasa!
                     file4nagios(reg) # kirjutame eraldi tabelisse nagiose teadete tegemiseks vt conn3 / oli 2 sammu eespool!!!
-                    # see lammutab datagrammi otsast peale laiali, seega kaovad registrinimed, mis enne msx seest eraldati. see on jama, taasta!
-
-
+                    
 
 
                 #nyyd saadame vastuse newstate sisu alusel ####################################
                 #if "frag:" in data:   # see oli fragment, ei vasta seekord
                 #    print "no answer to this datagram with frag:"
 
-                if inn != '':    # ei ole fragment, voib vastata, kui on midagi saata...
-                    inns.append(inn) # str
+                #if inn != '':    # ei ole fragment, voib vastata, kui on midagi saata...
+                #    inns.append(inn) # str
 
 
             else:
@@ -988,7 +988,7 @@ while 1:
 
             #aga retrycount tuleks kohe suurendada!
             Cmd="update newstate set retrycount='1' where mac='"+row[0]+"' and register='"+row[2]+"'"	 # 01.05.2013
-            print Cmd # debuf
+            print Cmd # debug
             conn.execute(Cmd)
 
         conn.commit() # newstate transaction end
