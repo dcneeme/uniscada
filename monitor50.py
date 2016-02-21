@@ -636,9 +636,9 @@ def svcadd_calc(register,value,mac): # arvutame kumulatiivse alusel loodud lisat
 
 
 def localcopy(data): # testimiseks koopia teise porti
-    addr_port=('127.0.0.1',44444)
+    addr_port=('91.236.222.107', 44444) # apiserver
     localsocket.sendto(data,addr_port)
-    print "udp localcopy-->",addr,data # will be forwarded to
+    print "udp localcopy--> from ",addr,"to",addr_port,data # will be forwarded to
 
 
 
