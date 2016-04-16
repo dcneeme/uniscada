@@ -10,10 +10,10 @@
 # 11.05.2013 lisame ka bn jaoks UTW nullistamise newstate kaudu iga kuu alguses, cron seal hasti ei toimi (nullistamine jaab tihti vahele)
 # 11.05.2013 algseisude uuendamist pole vaja kui vastava parameetri jaoks uus teenus puudub / naiteks week voi hour jaoks, vt svcadd.sql
 # 25.05.2013 algseisude esmane tekitamine ei toimi. kui neid ei tekitata, jaab koikidele kumulatiivne tulemus!
-# 01.06 UTW parandus, filter lisamine
+# 01.06 2013 UTW parandus, filter lisamine
+# 30.07.2015 lisaparameeter filter juhib ka oo pv gruppe! korraga nii teenust kui grp filtreerida ei saa.
 
-
- 
+#kaduma
 import time
 import datetime
 from pytz import timezone
@@ -52,19 +52,19 @@ cursor1=conn.cursor() # teine kursor veel sama yhenduse otsa
 
 
 # voib minna vaja lisaloogikat, mille alusel kadumalainud loendiseisudest ikkagi normaalne juurdekasv tuletada
-# aga kas siin on selleks oige koht, vist mitte. algseis tuleb vahendada kohe kui vahe avastatakse...
+# aga kas siin on selleks oige koht, vist mitte. algseis tuleb vahendada kohe kui vahe avastatakse, see aga kaivitub harva...
  
  
 # #############################################################
 # #################### MAIN ###################################
 # #############################################################
 
-if len(sys.argv) <2: # yks parameeter olgu ka
+if len(sys.argv) <2: # vahemalt yks parameeter olgu ka
     print 'parameter 0..4 needed'
     sys.exit()
  
 try:
-    pernum=int(sys.argv[1]) # num 0...4
+    pernum=int(sys.argv[1]) # period num 0...4, year month week day hour
 except:
     print 'illegal parameter',sys.argv[1]
     sys.exit()
@@ -74,23 +74,26 @@ if pernum>4 or pernum<0: # illegal value
     sys.exit()
 
 filter=''
+t = datetime.datetime.now()
+ts = time.mktime(t.timetuple()) #sekundid praegu
+
 print '\ncrontab_svcadd.py run at',t,'with parameter',pernum,
 try:
     filter=sys.argv[2]
-    print 'processing only',filter
+    print 'processing with filter',filter
 except:
     print 'processing everything'
-time.sleep(3)
+time.sleep(2)
+stateregisters = ['Y','M','W','D','H'] # olekuregistri koostamine, ntx WYS. 5 varianti y m w d h. ajutine erand hvv kp8, kus WNS WMS asemel!
+# kas see eelmine on ikka adekvaatne, kastusel vaid olekureg tegemiseks, mida ei kasutata?
 
-stateregisters=['Y','M','W','D','H'] # olekuregistri koostamine, ntx WYS. 5 varianti y m w d h. ajutine erand hvv kp8, kus WNS WMS asemel!
-t= datetime.datetime.now()
-ts= time.mktime(t.timetuple()) #sekundid praegu
 timeperiods=['yearly','monthly','weekly','daily','hourly']
 # pernum        0        1         2        3       4  # kasuta crontabis juhtimiseks neid parameetreid
+# lisaparam teenusenimi voi oo voi pv # as filter
 
 
 
-if pernum == 1: # kuu liiklusmahud UTW alusel
+if pernum == 1 and filter != 'pv': # kuu liiklusmahud UTW alusel - saadab kontrollerile (barionet) saadetavate LIIKLUSmahtude nullistamise kasu!
     print '\nresetting barionet traffic counters UTW at',t
     try:
         Cmd="BEGIN IMMEDIATE TRANSACTION" # conn
@@ -131,16 +134,20 @@ print '\nsaving cumulative values as',timeperiods[pernum],'beginning values usin
 try:
     Cmd="BEGIN IMMEDIATE TRANSACTION" # conn
     conn.execute(Cmd)
-    Cmd="select * from svcadd" # loeme kursorisse koik teenused, mida on vaja paljundada / konvertida
+    if filter == 'oo' or filter == 'pv':
+        Cmd="select * from svcadd where grp = '"+filter+"'" # teenused, mida on vaja paljundada / konvertida
+    else:
+        Cmd="select * from svcadd" # loeme kursorisse koik teenused, mida on vaja paljundada / konvertida
     #print Cmd # debug
     cursor.execute(Cmd)
+    
     for row in cursor: # koik kumul teenused, mida peab paljundama (ECW, WCV)
         register=row[0] # kumulatiivne teenus, mille alusel myttame
         addregister=row[pernum+1] # selle jaoks on algseisu vaja - kui ta nimi pole tyhi! pernum antakse parameetrina 0...4 
         print 'checking added services based on register',register
-        if addregister<>'' and (filter == register or filter == ''): # seda nullistame
+        if addregister<>'' and (filter == register or filter == '' or filter == 'oo' or filter == 'pv'): # oo ja pv reserved!
             beginregister=register[:-1]+str(pernum) # sellesse kirjutame algseisu vastavalt state hetkeseisule, reg nimi lopeb 0..4
-            stateregister=register[:-2]+stateregisters[pernum]+'S'
+            stateregister=register[:-2]+stateregisters[pernum]+'S' ## chk this, kes kasutab?
             state='0' # stringina, seda me ei muuda, kirjutame igale juurdetekitatud vaartusele olekuregistrisse ok
             print 'based on register',register,'found addregister',addregister,'beginregister',beginregister # 
             Cmd="select mac,value from state where register='"+register+"'" #
