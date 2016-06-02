@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# apr 2016 lisaks edasisaatmistele apiserverisse kuulata ka vastuseid ja edastada algupoarasele saatjale kui seal on rohkem kui id ja in
+# apr 2016 lisaks edasisaatmistele apiserverisse kuulata ka vastuseid ja edastada alguparasele saatjale kui seal on rohkem kui id ja in / kui seal esineb ykski in, ara saada!
 
 # !!! esineb seni lahendamata probleem - leitud 09.02.2014. kui statusreg sisu rikkuda, naiteks 0 asemel kirj sisse 0DCV, siis seda yle ei kirjutata ja file2nagiosed
 #  selle registriga seotud teenusele edaspidi ebaonnestuvad!!! monitooringus unknown, kuigi kontroller saadab korrektselt. siis vaata bnstate abil, mida state sisaldab!
@@ -59,7 +59,7 @@ DUE_TIME = 0 # tahtaeg
 
 # Create socket and bind to address
 UDPSock = socket(AF_INET,SOCK_DGRAM) # kontrollerite suund
-UDPSock.settimeout(0.3) # enne oli 3! see maarab ka seelle, kui tihti ja kas yldse paaseb ootel asju saatma.
+UDPSock.settimeout(0.1) # enne oli 3! see maarab ka seelle, kui tihti ja kas yldse paaseb ootel asju saatma.
 #mida vaiksem ooteaeg siin, seda suurem toenaosus et saab varem saata midagi. mujal viiteid ei ole!
 UDPSock.bind(addr)
 
@@ -272,10 +272,11 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
 
             #print('hakkame nagiosele tabelisse salvestama' # ajutine
 
-            Cmd = "insert into nagiosele(mac,nagios_ip,svc_name,status,value,desc,timestamp,conv_coef,out_unit,location,step,due_time,val_reg,multiperf,multivalue) \
+            Cmd = "insert into nagiosele(mac,nagios_ip,svc_name,status,value,desc,timestamp,conv_coef,out_unit,location,step,due_time,val_reg,multiperf,multivalue,sta_reg) \
                 values('"+id+"','"+MONIP+"','"+SVC_NAME+"','"+str(STATUS)+"','"+VALUE+"','"+DESCR+"','"+str(MONTS)+"','"+str(DIV) \
-                +"','"+str(UNIT)+"','"+str(MONLOC)+"','"+str(step)+"','"+str(DUE_TIME)+"','"+str(VAL_REG)+"','"+str(MULTIPERF)+"','"+str(MULTIVALUE)+"')"
-
+                +"','"+str(UNIT)+"','"+str(MONLOC)+"','"+str(step)+"','"+str(DUE_TIME)+"','"+VAL_REG+"','"+str(MULTIPERF)+"','"+str(MULTIVALUE)+"','"+STA_REG+"')"
+            #lisasin sta_reg kirjutamise nagiosele0 tabelisse  4.5.2016
+            
             # +"','"+UNIT+"','"+MONLOC+"','"+str(step)+"','"+str(DUE_TIME)+"','"+VAL_REG+"','"+str(MULTIPERF)+"','"+str(MULTIVALUE)+"')" #
 
             #print('insert nagiosele ',Cmd ## ajutine abi ####
@@ -654,22 +655,27 @@ def apiforward(): # listen to the response from apiserver
     lines = ''
     id = ''
     try:
-        loclines = localsocket.recvfrom(buf).splitlines()
+        loclines = localsocket.recvfrom(buf)[0].splitlines() # addr osa vastuses ei kasuta
+        #print('got something from apiserver: '+str(loclines))
     except:
+        traceback.print_exc()
         return None
 
     for locline in loclines:
-        if 'id:' in line:
-            id = line[3:]
-        elif 'in:' in line:
+        key, val = locline.split(':')
+        if key == 'id':
+            id = val
+        elif key == 'in':
             pass
         else: # this localresponse is longer that just id or id+in
             need2fwd = True
-
-    if not need2fwd or not '0001013000' in id:  # only forward apiserver responses to karla hosts
+            print('from apiserver (key, val) to forward: '+str((key,val))+', id'+id)
+    
+    if not need2fwd or (not '0001013000' in id and not '000000000001' in id):  # only forward apiserver responses to karla hosts and testhost
         return None
 
     # siit edasi vaja edastada. id olemas.
+    print('from apiserver filtered response: '+str(loclines))
     Cmd="BEGIN IMMEDIATE TRANSACTION"
     conn.execute(Cmd)
     for locline in loclines:
@@ -680,7 +686,7 @@ def apiforward(): # listen to the response from apiserver
 
             print("inserting apiserver response into newstate, id",id,"register",register,"value",value)
             Cmd="insert into newstate(mac,register,value) values('"+id+"','"+register+"','"+value+"')"
-            print(Cmd) #
+            #print(Cmd) #
             try:
                 conn.execute(Cmd)
                 #conn.commit()
@@ -1022,7 +1028,8 @@ while 1:
 
 
     except: # kuna midagi vastu votta polnud, siis saadame ootel asju YHE KORRA enne kui kontroller ise neid kysib...
-
+        apiforward()  # 16.4.2016 lisatud apiserveri vastuse edastamine karlasse
+        
         print(".",) # idle oleku margiks
 
         Cmd="BEGIN TRANSACTION" # newstate transaction start
