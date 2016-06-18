@@ -23,6 +23,7 @@
 #07.01.2013 nsca saatmine ridahaaval on surmavalt aeglane, prooviks ssh kaudu mitu rida korraga - send_ssh
 #08.01.2012 ssh kasutusele udp asemel! subprocess kaudu, hulk ridu korraga reavahetusega eraldatult nagiose nagios.cmd torusse
 #22.03.2013 TS= saatmine maha, CF ka!
+#13.5.2016 lisaks siia nagios.py testi tegeliku infoga / otsi vigu!
 
 
 
@@ -43,6 +44,21 @@ import subprocess
 
 from socket import *
 import string
+
+import logging
+try:
+    import chromalog # colored
+    chromalog.basicConfig(level=logging.INFO, format='%(name)-30s: %(asctime)s %(levelname)s %(message)s')
+except: # ImportError:
+    logging.basicConfig(format='%(name)-30s: %(asctime)s %(levelname)s %(message)s') # 30 on laius
+    print('warning - chromalog and colorama probably not installed...')
+logging.getLogger('heating').setLevel(logging.DEBUG) # investigate one thing, not propagated here
+log = logging.getLogger(__name__)
+
+
+
+from nagios import *
+n = NagiosMessage('host_dummy', debug_svc = True) # siia nagiose ip parast
 
 #import libssh2 # ssh yhenduse jaoks
 #ssh=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -147,7 +163,9 @@ def floatfromhex(hex):
 
 def tegutseme():
     global send_ssh_string, send_http_string # ports teateid reavahetustega eraldatud
-
+    nagstring_uus = '' # nagios.py jaoks
+    multivalue=['']
+    
     send_list=[] # passive chk udp, kahtlus et osa infot laheb kaduma... ip: , text:
     send_nsca_list=[] # tcp nsca protokoll passive chk jaoks, peaks parem olema. mac: , svc_name: , status: , desc_perf:
 
@@ -183,7 +201,7 @@ def tegutseme():
             mac=row[0]
             nagios_ip=row[1]
             svc_name=row[2]
-            #sta_reg=row[3]  # see ei huvita, tegeleme teenusenimedega
+            sta_reg=row[3]  # see ei huvita muul juhul kui nagiosele testis
             status=int(row[4]) # vaja on numbrit nsca saatmise jaoks!
             val_reg=row[5] # see huvitab xxW avastamiseks
             value=row[6] # 6?
@@ -198,6 +216,18 @@ def tegutseme():
             # 14 on grp_value, mida siin pole vaja
             multiperf=str(row[15]) # multiperf, graafikute nimed
             multidata=str(row[16]) # multidata, desc sisse kooloni taha need mis loetletud
+
+            # info olemas ka sendtuple jaoks, nagios.py testiks (sta_reg, status, val_reg, value) = sendtuple
+            sendtuple = (sta_reg, status, val_reg, value)
+            multivalue = multidata.strip(' ').split(' ') if multidata != None else []
+            mperf = multiperf.strip(' ').split(' ')
+            try:
+                nagstring_uus = n.convert(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) #########################
+                if nagstring_uus == None: ##
+                    nagstring_uus = 'None based on sendtuple '+str(sendtuple)+', mperf '+str(nagstring_uus)+', multivalue '+str(multivalue)+', mac '+mac
+            except:
+                print('n.convert() PROBLEM with sendtuple '+str(sendtuple))
+                #traceback.print_exc()
 
             if "91.236.222.106" in nagios_ip:
                 nagios=1 # zone server, siis CF ja TS ei saada, kuid voib saata multiperf kui teenus xxW
@@ -284,8 +314,8 @@ def tegutseme():
 
                         perfdata=perfdata+servalueS+" "  # MULTI PERF LOPP # lisame servalueS perfdata loppu, servalueS muutujat voib uuesti kasutada
 
-                    else:
-                        print 'error in received data, lenperf must be equal or smaller than lenvalue! svc-name',svc_name,'mac',mac
+                    #else:
+                    #    print 'error in received data, lenperf must be equal or smaller than lenvalue! svc-name',svc_name,'mac',mac,multiperf,value
 
 
 
@@ -439,18 +469,22 @@ def tegutseme():
                 #desc_perf=desc+"|"+perfdata # send_nsca jaoks
 
             #print nagstring # nagsend logib nagunii
+            if nagstring != nagstring_uus:
+                print(' UUS: '+nagstring_uus) ### erinevus vanamoodi sonumiga vorreldes
+                print('VANA: '+nagstring) ### erinevus vanamoodi sonumiga vorreldes
+            else:
+                print('SAMA: '+nagstring_uus)
 
             # saatmiseks nagiosele #########################
             #send_list.append({"ip":nagios_ip,"text":nagstring}) # konfitud serverisse voimasliku TS infoga perfdatas
             #send_nsca_list.append({"mac":mac,"svc_name":svc_name,"status":status,"desc_perf":desc_perf}) # mac: , svc_name: , status: , desc_perf:
-            send_ssh_string=send_ssh_string+nagstring # teeme yhe suure stringi mille ssh ara saadan yhe korraga
-            if '000101300' in mac: # codeborne karla info
-                send_http_string += nagstring # http kaudu saatmiseks
+            send_ssh_string = send_ssh_string+nagstring # teeme yhe suure stringi mille ssh ara saadan yhe korraga
+
+            #if '000101300' in mac: # codeborne karla info # enam pole vaja
+            #    send_http_string += nagstring # http kaudu saatmiseks
 
     except:
         traceback.print_exc()  # valitud teenustega tegutsemise lopp
-
-    # saadame dictionaryst ara
 
     cursor.close()
 
