@@ -180,7 +180,9 @@ class Buffer2Platforms(object):  ###############################################
 
 
                 try:
-                    nagstring_uus = self.n.convert(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) #########################
+                    restuple = self.n.convert(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp, format=3) #########################
+                    nagstring_uus = restuple[0]
+                    
                 except:
                     print('n.convert() PROBLEM with sendtuple '+str(sendtuple)+' for host '+mac)
                     nagstring_uus = None
@@ -195,21 +197,20 @@ class Buffer2Platforms(object):  ###############################################
                     self.mybasen = mybasen # muutus meelde
 
                 if mybasen: ############# True
-                    if len(sendtuple[3].split(' ')) == 1 : # single values only accepted so far
-                        mybasen_row = self.n.convert2mybasen(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) ########
-                        print('single value mybasen_row: '+str(mybasen_row)) # logging ei toimi...
-                        if mybasen_row != None:
-                            if self.basentuple == basentuple: # sama addr mis eelmine
-                                self.mybasen_rows.append(mybasen_row)
-                                print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
-                            else: # uus koht kuhu saata
-                                #print('basentuple change from '+str(self.basentuple)+' to '+str(basentuple))
-                                if len(self.mybasen_rows) > 0:
-                                    print('sending '+str(len(self.mybasen_rows))+' mybasen_rows due to basentuple change')
-                                    self.basentuple2mybasen_send(); self.mybasen_send() ## eelmine list minema ja tyhjaks, self.basentuple alusel
-                                self.mybasen_rows.append(mybasen_row) # uut koguma
-                                print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
-                                self.basentuple = basentuple # uus meelde
+                    mybasen_row = restuple[1] # kui format == 3
+                    if mybasen_row != None:
+                        print('using mybasen_row: '+str(mybasen_row)) # logging ei toimi...
+                        if self.basentuple == basentuple: # sama addr mis eelmine
+                            self.mybasen_rows.append(mybasen_row)
+                            print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
+                        else: # uus koht kuhu saata
+                            #print('basentuple change from '+str(self.basentuple)+' to '+str(basentuple))
+                            if len(self.mybasen_rows) > 0:
+                                print('sending '+str(len(self.mybasen_rows))+' mybasen_rows due to basentuple change')
+                                self.basentuple2mybasen_send(); self.mybasen_send() ## eelmine list minema ja tyhjaks, self.basentuple alusel
+                            self.mybasen_rows.append(mybasen_row) # uut koguma
+                            print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
+                            self.basentuple = basentuple # uus meelde
 
                 ##self.basentuple = basentuple # eelmine igal juhul meelde
 
