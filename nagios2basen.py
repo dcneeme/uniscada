@@ -73,6 +73,9 @@ class Buffer2Platforms(object):  ###############################################
     def __init__(self):
         self.n = NagiosMessage('host_dummy', debug_svc = True) # # use self.n.convert() to get nagios messages
         self.m = MyBasenSend() # use m.convert() to get mybasen messages
+        self.mybasen = False
+        self.mybasen_rows = []
+        self.basentuple = (None, None, None, None)
         self.conna = sqlite3.connect('/srv/scada/sqlite/alias',2) # siit ainult alias kasutusel!
         self.conna.text_factory = str # tapitahtede karjumise vastu
         self.conn = sqlite3.connect('/srv/scada/sqlite/nagiosele0',2) # timeout 2 s (default on 5)
@@ -82,6 +85,7 @@ class Buffer2Platforms(object):  ###############################################
         self.loop = tornado.ioloop.IOLoop.instance()
         self.send_scheduler = PeriodicCallback(self.tegutseme, 500, io_loop = self.loop) # send every 500 ms
         self.send_scheduler.start()
+        log.info('class Buffer2Platforms init done')
 
 
     def send_ssh2(self, send_string):# selle kaudu saadame nagiosele!
@@ -110,8 +114,7 @@ class Buffer2Platforms(object):  ###############################################
             ridu = 0 # loendame mitu rida  tuli, kui midagi ei saanud, siis ka ei kustuta midagi allpool!
             #('00204AA95C56', '212.47.221.83', 'Veetase', None, '0', 'LVV', '540', 'Veetase on:', '1318942493.0', '1000', 'm', 'hellamaa biopuhasti', '10', '0', None, '', '')
             for row in cursor:
-                mybasen = False # enamasti ei pea platvormi saatma
-                #print row # ajutine debug
+               #print row # ajutine debug
                 ridu += 1
                 value="-" # igaks juhuks algvaartused
                 desc="mis?"
@@ -144,8 +147,12 @@ class Buffer2Platforms(object):  ###############################################
                 multiperf=str(row[15]) # multiperf, graafikute nimed
                 multidata=str(row[16]) # multidata, desc sisse kooloni taha need mis loetletud
                 basentuple = (row[17], row[18], row[19], row[20]) # kui see muutub siis saada... sordi selle alusel?
-                if basentuple[0] != '':
+                if basentuple[0] != '' and basentuple[0] != None:
                     mybasen = True # sinna ka saata paralleelselt nagiosele voi ainult?
+                else:
+                    mybasen = False
+                #print('mac', mac, 'svc_name', svc_name, 'self.mybasen', str(self.mybasen), 'mybasen', str(mybasen), 'basentuple',str(basentuple)) ##
+
                 # info olemas ka sendtuple jaoks, nagios.py testiks (sta_reg, status, val_reg, value) = sendtuple
                 sendtuple = (sta_reg, status, val_reg, value)
                 multivalue = multidata.strip(' ').split(' ') if multidata != None else []
@@ -174,20 +181,42 @@ class Buffer2Platforms(object):  ###############################################
 
                 try:
                     nagstring_uus = self.n.convert(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) #########################
-                    if mybasen:
-                        print('mybasen message try for id '+mac)
-                        mybasen_row = self.n.convert2mybasen(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) ########
-                        m.doall(mybasen_row) # kogu kuni url/uid andmed samad ja muutumisel voi 1 s parast saada?
-
-                    if nagstring_uus == None: ##
-                        log.error('nagstring_uus None based on sendtuple '+str(sendtuple)+', mperf '+str(nagstring_uus)+', multivalue '+str(multivalue)+', mac '+mac)
-
                 except:
-                    print('n.convert() PROBLEM with sendtuple '+str(sendtuple))
+                    print('n.convert() PROBLEM with sendtuple '+str(sendtuple)+' for host '+mac)
+                    nagstring_uus = None
                     traceback.print_exc()
 
-                if nagstring_uus != None:
-                    send_ssh_string = send_ssh_string + nagstring_uus # teeme yhe suure stringi mille ssh ara saadab yhe korraga
+                if mybasen != self.mybasen: ### change! send on stop, also on basentuple change below
+                    if self.mybasen: # lubatuse lopp
+                        if len(self.mybasen_rows) > 0: # enam ei ole mybasen LOPP, saada minema self.mybasen_rows kui olemas
+                            #print('need to send '+str(len(self.mybasen_rows))+' mybasen_rows due to mybasen change to False, basentuple '+str(basentuple))
+                            self.basentuple2mybasen_send(); self.mybasen_send() ## kogu list self.mybase_rows minema
+                    self.basentuple = basentuple # et allpool saaks appendima hakata
+                    self.mybasen = mybasen # muutus meelde
+
+                if mybasen: ############# True
+                    if len(sendtuple[3].split(' ')) == 1 : # single values only accepted so far
+                        mybasen_row = self.n.convert2mybasen(sendtuple, mperf, multivalue, svc_name=svc_name, out_unit=out_unit, conv_coef=conv_coef, desc=desc, host_id=mac, ts=timestamp) ########
+                        print('single value mybasen_row: '+str(mybasen_row)) # logging ei toimi...
+                        if mybasen_row != None:
+                            if self.basentuple == basentuple: # sama addr mis eelmine
+                                self.mybasen_rows.append(mybasen_row)
+                                print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
+                            else: # uus koht kuhu saata
+                                #print('basentuple change from '+str(self.basentuple)+' to '+str(basentuple))
+                                if len(self.mybasen_rows) > 0:
+                                    print('sending '+str(len(self.mybasen_rows))+' mybasen_rows due to basentuple change')
+                                    self.basentuple2mybasen_send(); self.mybasen_send() ## eelmine list minema ja tyhjaks
+                                self.mybasen_rows.append(mybasen_row) # uut koguma
+                                print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
+                                self.basentuple = basentuple # uus meelde
+
+                ##self.basentuple = basentuple # eelmine igal juhul meelde
+
+                if nagstring_uus == None: ##
+                    log.error('nagstring_uus None based on sendtuple '+str(sendtuple)+', mperf '+str(nagstring_uus)+', multivalue '+str(multivalue)+', mac '+mac)
+                else:
+                    send_ssh_string = send_ssh_string + nagstring_uus ### teeme yhe suure stringi mille ssh ara saadab yhe korraga
 
         except:
             traceback.print_exc()  # valitud teenustega tegutsemise lopp
@@ -218,8 +247,20 @@ class Buffer2Platforms(object):  ###############################################
                 sys.exit() # restart
 
 
-    def send_http(self, send_http_string): # async using tornado
-        print('simulating http send with string: '+str(send_http_string))
+    def mybasen_send(self): # async using tornado
+        ''' sends self.mybasen_rows and clears it / does not buffer! there should be good tcp connection between servers... '''
+        print('sending to mybasen: '+str(self.mybasen_rows))
+        #self.basentuple2mybasen_send() # set server params BEFORE sendtuple changesm in tegutseme()
+        self.m.mybasen_send(self.m.domessage(self.mybasen_rows)) # compile the full message and send in async mode using tornado ioloop
+        self.mybasen_rows = [] # tyhjaks
+
+
+    def basentuple2mybasen_send(self):
+        ''' Set parameters to send '''
+        self.m.url = basentuple[0]
+        self.m.uid = bytes(basentuple[1], 'utf-8') # binary!
+        self.m.passwd = bytes(basentuple[2], 'utf-8') # binary!
+        self.m.path = basentuple[3]
 
 
 # #############################################################

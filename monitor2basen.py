@@ -239,13 +239,11 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                 cursor.execute(Cmd) # saame yhe rea
 
                 for teenuseinfo in cursor:
-                    STATUS=int(teenuseinfo[0]) # kui puudub sta_reg siis peaKS STATUS=0 OLEMA...
-                    STA_TS=teenuseinfo[1]
+                    STATUS = int(teenuseinfo[0]) if teenuseinfo[0] != '' else 0 # kui puudub sta_reg siis peaKS STATUS=0 OLEMA...
+                    STA_TS = teenuseinfo[1] if teenuseinfo[1] != '' else None 
                     if (STATUS == 0 and teenuseinfo[2] != None and register == STA_REG):
                         DUE_TIME=int(float(teenuseinfo[2])) # saatmise tahtaeg
-                        #if DUE_TIME>0:
-                        #    print STA_REG,"...state",STATUS,"due time not null",DUE_TIME
-
+                        
                     else:
                         DUE_TIME=0  # pole vaja midagi venitada
 
@@ -288,7 +286,7 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
 
             try:
                 conn30.execute(Cmd) # nagiosele, KUI EI SAA, siis allpool update, muidu hilineb hiljem saabunud paarilise nagiossse saatmine
-                print(locregister,MONTS,"->",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR)
+                print(locregister,MONTS,"->",SVC_NAME,str(STATUS),VALUE+"/"+str(DIV),UNIT,DESCR,basentuple)
                 # nyyd voib lisada teatud teenuseid logisse eraldi tabelitesse
                 if SVC_NAME == "ViimaneTehing": # servicelog faili tabelisse ViimaneTehing
                     Cmd="insert into "+SVC_NAME+"(mac,nagios_ip,status,value,timestamp,location) \
@@ -382,13 +380,13 @@ def statemodify(locregister,locvalue): #kasutame ka globaalseid muutujaid id ja 
         try:
             cursor.execute(Cmd) # saame yhe rea vastuseks kui sedagi - val korral ei saa!
             for locrow in cursor:
-            if MIN_LEN == None:
-                MIN_LEN = 0
-            else:
-                try:
-                    MIN_LEN = int(locrow[0]) # loodame et see mis siin on konverteerub kuidagi numbriks
-                except:
-                    MIN_LEN = 0 # ja kui ei konverteeru olgu 0
+                if MIN_LEN == None:
+                    MIN_LEN = 0
+                else:
+                    try:
+                        MIN_LEN = int(locrow[0]) # loodame et see mis siin on konverteerub kuidagi numbriks
+                    except:
+                        MIN_LEN = 0 # ja kui ei konverteeru olgu 0
 
         except:
             MIN_LEN = 0 # print(locregister," pole sta_reg vist, min_len lugemine ei onnestu")
@@ -726,7 +724,7 @@ def apiforward(): # listen to the response from apiserver
 
 localsocket = socket(AF_INET,SOCK_DGRAM) # for copies to apiserver
 localsocket.settimeout(0.1) # response timeout from apiserver
-basentuple = ('','','','') # mybasen info kandmisekks nagiosele tabelisse
+basentuple = ('','','','') # mybasen info kandmiseks nagiosele tabelisse
 
 # Receive messages
 while 1:
@@ -794,7 +792,8 @@ while 1:
                 cursor.close() # voib ka mitte teha
 
                 if (MONLOC != ""):  # asukoht controller tabelis olemas
-                    pass # print("\n processing data from",id,MONLOC,NEWSOCKET,str(t) # str(datetime.datetime.now()) # alustame logis uut portsu
+                    ##pass 
+                    print("\n ...processing data from",id,MONLOC,basentuple)  # str(datetime.datetime.now()) # alustame logis uut portsu
                 else:
                     print("non-registered controller mac",id)
 
