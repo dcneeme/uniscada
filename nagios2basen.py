@@ -190,7 +190,7 @@ class Buffer2Platforms(object):  ###############################################
                     if self.mybasen: # lubatuse lopp
                         if len(self.mybasen_rows) > 0: # enam ei ole mybasen LOPP, saada minema self.mybasen_rows kui olemas
                             #print('need to send '+str(len(self.mybasen_rows))+' mybasen_rows due to mybasen change to False, basentuple '+str(basentuple))
-                            self.basentuple2mybasen_send(); self.mybasen_send() ## kogu list self.mybase_rows minema
+                            self.basentuple2mybasen_send(); self.mybasen_send() ## kogu list self.mybase_rows minema self.basentuple alusel
                     self.basentuple = basentuple # et allpool saaks appendima hakata
                     self.mybasen = mybasen # muutus meelde
 
@@ -206,7 +206,7 @@ class Buffer2Platforms(object):  ###############################################
                                 #print('basentuple change from '+str(self.basentuple)+' to '+str(basentuple))
                                 if len(self.mybasen_rows) > 0:
                                     print('sending '+str(len(self.mybasen_rows))+' mybasen_rows due to basentuple change')
-                                    self.basentuple2mybasen_send(); self.mybasen_send() ## eelmine list minema ja tyhjaks
+                                    self.basentuple2mybasen_send(); self.mybasen_send() ## eelmine list minema ja tyhjaks, self.basentuple alusel
                                 self.mybasen_rows.append(mybasen_row) # uut koguma
                                 print('new mybasen_rows length: '+str(len(self.mybasen_rows)))
                                 self.basentuple = basentuple # uus meelde
@@ -249,7 +249,7 @@ class Buffer2Platforms(object):  ###############################################
 
     def mybasen_send(self): # async using tornado
         ''' sends self.mybasen_rows and clears it / does not buffer! there should be good tcp connection between servers... '''
-        print('sending to mybasen: '+str(self.mybasen_rows))
+        print('sending to mybasen '+str(self.m.url)+' '+str(self.m.uid)+' '+str(self.m.passwd))
         #self.basentuple2mybasen_send() # set server params BEFORE sendtuple changesm in tegutseme()
         self.m.mybasen_send(self.m.domessage(self.mybasen_rows)) # compile the full message and send in async mode using tornado ioloop
         self.mybasen_rows = [] # tyhjaks
@@ -257,10 +257,11 @@ class Buffer2Platforms(object):  ###############################################
 
     def basentuple2mybasen_send(self):
         ''' Set parameters to send '''
-        self.m.url = basentuple[0]
-        self.m.uid = bytes(basentuple[1], 'utf-8') # binary!
-        self.m.passwd = bytes(basentuple[2], 'utf-8') # binary!
-        self.m.path = basentuple[3]
+        log.info('setting mybasen_send parameters using '+str(self.basentuple))
+        self.m.url = 'https://'+self.basentuple[0]
+        self.m.uid = bytes(self.basentuple[1], 'utf-8') # binary!
+        self.m.passwd = bytes(self.basentuple[2], 'utf-8') # binary!
+        self.m.path = self.basentuple[3]
 
 
 # #############################################################
