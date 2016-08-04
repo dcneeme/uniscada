@@ -238,12 +238,17 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                 #print(Cmd)
                 cursor.execute(Cmd) # saame yhe rea
 
-                for teenuseinfo in cursor:
-                    STATUS = int(teenuseinfo[0]) if teenuseinfo[0] != '' else 0 # kui puudub sta_reg siis peaKS STATUS=0 OLEMA...
-                    STA_TS = teenuseinfo[1] if teenuseinfo[1] != '' else None 
-                    if (STATUS == 0 and teenuseinfo[2] != None and register == STA_REG):
-                        DUE_TIME=int(float(teenuseinfo[2])) # saatmise tahtaeg
+                for stateinfo in cursor:
+                    try:
+                        STATUS = int(stateinfo[0]) if stateinfo[0] != '' else 0 # kui puudub sta_reg siis peaKS STATUS=0 OLEMA...
+                        STA_TS = stateinfo[1] if stateinfo[1] != '' else None # tegelikult seda ei kasutata!
+                    except:
+                        print('assuming status=0 due to problem with '+SVC_NAME+' stateinfo: '+str(repr(stateinfo))+', host_id '+id)
+                        STATUS = 0
+                        #traceback.print_exc()
                         
+                    if (STATUS == 0 and stateinfo[2] != None and register == STA_REG):
+                        DUE_TIME=int(float(stateinfo[2])) # saatmise tahtaeg
                     else:
                         DUE_TIME=0  # pole vaja midagi venitada
 
@@ -257,9 +262,9 @@ def insert2nagiosele(locregister): # siin ainult register ette, vaartuse jm omad
                 #print(Cmd)
                 cursor.execute(Cmd)
 
-                for teenuseinfo in cursor:
-                    VALUE=teenuseinfo[0] # peab olema string! kas on alati?
-                    VAL_TS=teenuseinfo[1]
+                for stateinfo in cursor:
+                    VALUE=stateinfo[0] # peab olema string! kas on alati?
+                    VAL_TS=stateinfo[1]
 
                 #DUE_TIME = 0 # value korral ei otsi ega muuda - ei maksa varem leitut rikkuda!
 
@@ -845,7 +850,7 @@ while 1:
                                     idlike = row[1]
                                     if newregister != '' and (idlike in id): # aliases antud mac osaline match voimalik nt alguse alusel. tyhjus matchib koigega!
                                         print("replacing register",register,"with service alias",newregister,value,"for mac ",id)  # service alias only!
-                                        register=newregister
+                                        register = newregister
 
                                 cursor.close()
                                 # siia vahele tsykkel addsvc abil uute teenuste lisamiseks 23.04.2013. peab algama W voi E-ga

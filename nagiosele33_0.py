@@ -553,7 +553,7 @@ while 1:
         res = cursor2.execute(Cmd) #  seda vist pole vaja?
 
         for row in cursor2: # peab tulema 1 rida
-            ts=row[0]  # otsime koige vanemat kirje ajamarki
+            ts=row[0]  # otsime koige hilisemat ajamarki
             ridu=row[1] # mitu kirjet baasis?
 
         if ts != None:
